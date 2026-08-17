@@ -32,6 +32,7 @@ export const Navbar = () => {
         borderBottom: 1,
         borderColor: 'divider',
         color: 'text.primary',
+        zIndex: (theme) => theme.zIndex.drawer + 1,
       }}
     >
       <Toolbar sx={{ justifyContent: 'space-between', px: { xs: 2, md: 4 } }}>
@@ -109,7 +110,7 @@ export const Navbar = () => {
           <Tooltip title="Trang cá nhân & Cài đặt">
             <IconButton onClick={() => navigate('/profile')} sx={{ p: 0.5 }}>
               <Avatar
-                src={user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}
+                src={user?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}
                 sx={{ width: 34, height: 34, border: 2, borderColor: 'primary.main' }}
               />
             </IconButton>
