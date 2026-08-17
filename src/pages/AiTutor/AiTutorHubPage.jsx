@@ -14,15 +14,25 @@ import SmartToyIcon from '@mui/icons-material/SmartToy';
 import ChatIcon from '@mui/icons-material/Chat';
 import EditIcon from '@mui/icons-material/Edit';
 import MicIcon from '@mui/icons-material/Mic';
+import PhoneInTalkIcon from '@mui/icons-material/PhoneInTalk';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 
 const AI_TOOLS = [
+  {
+    id: 'voice-call',
+    title: 'Gọi thoại trực tiếp với Tokki AI',
+    desc: 'Luyện phản xạ đàm thoại 2 chiều qua micro, nghe giọng nói bản xứ chuẩn Seoul và nhận góp ý tức thì.',
+    icon: PhoneInTalkIcon,
+    badge: 'Live Voice Mode',
+    color: '#e63946',
+    route: '/ai-voice-call',
+  },
   {
     id: 'chat',
     title: 'Chat với Gia sư Tokki AI',
     desc: 'Hỏi đáp mọi thắc mắc về ngữ pháp, phân biệt từ đồng nghĩa và cấu trúc câu khó.',
     icon: ChatIcon,
-    badge: 'Real-time SSE',
+    badge: 'Real-time Chat',
     color: '#973f69',
     route: '/ai-tutor/chat',
   },

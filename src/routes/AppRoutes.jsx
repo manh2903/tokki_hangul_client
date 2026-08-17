@@ -22,6 +22,7 @@ import { VideoWatchPage } from '@/pages/Video/VideoWatchPage';
 import { AiTutorHubPage } from '@/pages/AiTutor/AiTutorHubPage';
 import { AiChatPage } from '@/pages/AiTutor/AiChatPage';
 import { EssayCorrectionPage } from '@/pages/AiTutor/EssayCorrectionPage';
+import { AiVoiceCallPage } from '@/pages/AiVoiceCall/AiVoiceCallPage';
 import { ReviewHubPage } from '@/pages/Review/ReviewHubPage';
 import { FlashcardDeckPage } from '@/pages/Review/FlashcardDeckPage';
 import { GamesPage } from '@/pages/Review/GamesPage';
@@ -64,10 +65,11 @@ export const AppRoutes = () => {
         <Route path="/video" element={<VideoHubPage />} />
         <Route path="/video/:id" element={<VideoWatchPage />} />
 
-        {/* AI Tutor */}
+        {/* AI Tutor & Live Voice Call */}
         <Route path="/ai-tutor" element={<AiTutorHubPage />} />
         <Route path="/ai-tutor/chat" element={<AiChatPage />} />
         <Route path="/ai-tutor/essay" element={<EssayCorrectionPage />} />
+        <Route path="/ai-voice-call" element={<AiVoiceCallPage />} />
 
         {/* Review & SRS Games */}
         <Route path="/review" element={<ReviewHubPage />} />

@@ -7,14 +7,15 @@ import RecordVoiceOverIcon from '@mui/icons-material/RecordVoiceOver';
 import OndemandVideoIcon from '@mui/icons-material/OndemandVideo';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import StyleIcon from '@mui/icons-material/Style';
+import PhoneInTalkIcon from '@mui/icons-material/PhoneInTalk';
 
 const MOBILE_ITEMS = [
   { label: 'Trang chủ', path: '/', icon: <HomeIcon /> },
+  { label: 'Live Call', path: '/ai-voice-call', icon: <PhoneInTalkIcon /> },
   { label: 'TOPIK', path: '/topik', icon: <SchoolIcon /> },
   { label: 'Hội thoại', path: '/conversation', icon: <RecordVoiceOverIcon /> },
   { label: 'Video', path: '/video', icon: <OndemandVideoIcon /> },
   { label: 'AI Tutor', path: '/ai-tutor', icon: <SmartToyIcon /> },
-  { label: 'Ôn tập', path: '/review', icon: <StyleIcon /> },
 ];
 
 export const MobileNav = () => {

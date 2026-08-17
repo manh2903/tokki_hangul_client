@@ -12,6 +12,14 @@ export const videosApi = {
   // Cập nhật tiến độ xem video của người dùng
   updateProgress: (data) =>
     axiosClient.post('/videos/progress', data),
+
+  // Dùng Gemini AI để tạo phụ đề song ngữ Hàn-Việt cho video
+  generateSubtitles: (id, count = 15) =>
+    axiosClient.post(`/videos/${id}/generate-subtitles`, { count }),
+
+  // Học viên tự nhập link YouTube / TikTok để học
+  importVideo: (data) =>
+    axiosClient.post('/videos/import', data),
 };
 
 export default videosApi;

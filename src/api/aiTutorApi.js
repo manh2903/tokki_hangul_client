@@ -16,6 +16,10 @@ export const aiTutorApi = {
   // Gửi tin nhắn câu hỏi tới AI Tutor
   sendMessage: (data) =>
     axiosClient.post('/ai-tutor/messages', data),
+
+  // Cuộc gọi thoại Realtime tương tác 2 chiều với AI Tutor
+  realtimeVoiceChat: (data) =>
+    axiosClient.post('/ai-tutor/voice-chat', data),
 };
 
 export default aiTutorApi;

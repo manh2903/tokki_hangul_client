@@ -20,9 +20,11 @@ import SmartToyIcon from '@mui/icons-material/SmartToy';
 import StyleIcon from '@mui/icons-material/Style';
 import InsightsIcon from '@mui/icons-material/Insights';
 import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
+import PhoneInTalkIcon from '@mui/icons-material/PhoneInTalk';
 
 const NAV_ITEMS = [
   { label: 'Trang chủ', path: '/app', icon: HomeIcon },
+  { label: 'Gọi thoại Live AI', path: '/ai-voice-call', icon: PhoneInTalkIcon, badge: 'Live' },
   { label: 'Lộ trình AI', path: '/onboarding/path-preview', icon: ExploreIcon, badge: 'Smart' },
   { label: 'Luyện thi TOPIK', path: '/topik', icon: SchoolIcon },
   { label: 'Giao tiếp & AI', path: '/conversation', icon: RecordVoiceOverIcon },
