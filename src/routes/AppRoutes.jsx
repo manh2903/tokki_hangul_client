@@ -19,6 +19,7 @@ import { DialoguePracticePage } from '@/pages/Conversation/DialoguePracticePage'
 import { RoleplayPage } from '@/pages/Conversation/RoleplayPage';
 import { VideoHubPage } from '@/pages/Video/VideoHubPage';
 import { VideoWatchPage } from '@/pages/Video/VideoWatchPage';
+import { VocabularyHubPage } from '@/pages/Vocabulary/VocabularyHubPage';
 import { AiTutorHubPage } from '@/pages/AiTutor/AiTutorHubPage';
 import { AiChatPage } from '@/pages/AiTutor/AiChatPage';
 import { EssayCorrectionPage } from '@/pages/AiTutor/EssayCorrectionPage';
@@ -61,9 +62,10 @@ export const AppRoutes = () => {
         <Route path="/conversation/dialogue/:id" element={<DialoguePracticePage />} />
         <Route path="/conversation/roleplay" element={<RoleplayPage />} />
 
-        {/* Video Learning */}
+        {/* Video Learning & Vocabulary */}
         <Route path="/video" element={<VideoHubPage />} />
         <Route path="/video/:id" element={<VideoWatchPage />} />
+        <Route path="/vocabulary" element={<VocabularyHubPage />} />
 
         {/* AI Tutor & Live Voice Call */}
         <Route path="/ai-tutor" element={<AiTutorHubPage />} />

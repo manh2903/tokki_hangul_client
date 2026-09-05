@@ -9,6 +9,8 @@ import {
   Typography,
   Chip,
   Button,
+  Drawer,
+  IconButton,
 } from '@mui/material';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import HomeIcon from '@mui/icons-material/Home';
@@ -19,15 +21,17 @@ import OndemandVideoIcon from '@mui/icons-material/OndemandVideo';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import StyleIcon from '@mui/icons-material/Style';
 import InsightsIcon from '@mui/icons-material/Insights';
-import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
 import PhoneInTalkIcon from '@mui/icons-material/PhoneInTalk';
 import SparklesIcon from '@mui/icons-material/AutoAwesome';
+import MenuBookIcon from '@mui/icons-material/MenuBook';
+import CloseIcon from '@mui/icons-material/Close';
 
 const MENU_SECTIONS = [
   {
     title: 'Học tập',
     items: [
       { label: 'Trang chủ', path: '/app', icon: HomeIcon },
+      { label: 'Kho Từ vựng', path: '/vocabulary', icon: MenuBookIcon },
       { label: 'Lộ trình AI', path: '/onboarding/path-preview', icon: ExploreIcon, badge: 'Smart' },
       { label: 'Luyện thi TOPIK', path: '/topik', icon: SchoolIcon },
       { label: 'Học qua Video', path: '/video', icon: OndemandVideoIcon },
@@ -50,23 +54,23 @@ const MENU_SECTIONS = [
   },
 ];
 
-export const Sidebar = () => {
+export const Sidebar = ({ mobileOpen = false, onClose }) => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  return (
+  const handleNavigate = (path) => {
+    navigate(path);
+    if (onClose) {
+      onClose();
+    }
+  };
+
+  const renderContent = (isMobile = false) => (
     <Box
-      component="aside"
       sx={{
-        display: { xs: 'none', lg: 'flex' },
+        display: 'flex',
         flexDirection: 'column',
-        width: 260,
-        flexShrink: 0,
-        height: '100vh',
-        position: 'sticky',
-        top: 0,
-        borderRight: '1px solid',
-        borderColor: 'divider',
+        height: '100%',
         bgcolor: 'background.paper',
         overflowY: 'auto',
         '&::-webkit-scrollbar': { width: '4px' },
@@ -76,38 +80,54 @@ export const Sidebar = () => {
     >
       {/* Brand Logo & Title */}
       <Box
-        component={Link}
-        to="/app"
         sx={{
           display: 'flex',
           alignItems: 'center',
-          gap: 1.5,
-          textDecoration: 'none',
-          color: 'inherit',
+          justifyContent: 'space-between',
           p: 2,
           pb: 1,
         }}
       >
         <Box
-          component="img"
-          src="/tokki_hangul_logo.svg"
-          alt="Tokki Hangul Logo"
+          component={Link}
+          to="/app"
+          onClick={() => handleNavigate('/app')}
           sx={{
-            height: 40,
-            width: 'auto',
-            objectFit: 'contain',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.5,
+            textDecoration: 'none',
+            color: 'inherit',
           }}
-        />
-        <Box>
-          <Typography variant="h6" sx={{ fontWeight: 800, color: 'primary.main', lineHeight: 1.1 }}>
-            Tokki Hangul
-          </Typography>
-          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
-            HỌC TIẾNG HÀN CÙNG AI
-          </Typography>
+        >
+          <Box
+            component="img"
+            src="/tokki_hangul_logo.svg"
+            alt="Tokki Hangul Logo"
+            sx={{
+              height: 40,
+              width: 'auto',
+              objectFit: 'contain',
+            }}
+          />
+          <Box>
+            <Typography variant="h6" sx={{ fontWeight: 800, color: 'primary.main', lineHeight: 1.1 }}>
+              Tokki Hangul
+            </Typography>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+              HỌC TIẾNG HÀN CÙNG AI
+            </Typography>
+          </Box>
         </Box>
+
+        {isMobile && (
+          <IconButton onClick={onClose} size="small" sx={{ color: 'text.secondary' }}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        )}
       </Box>
 
+      {/* Menu Sections */}
       <Box sx={{ flex: 1, p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
         {MENU_SECTIONS.map((section, idx) => (
           <Box key={idx}>
@@ -138,7 +158,7 @@ export const Sidebar = () => {
                 return (
                   <ListItemButton
                     key={item.path}
-                    onClick={() => navigate(item.path)}
+                    onClick={() => handleNavigate(item.path)}
                     selected={isSelected}
                     sx={{
                       borderRadius: '12px',
@@ -186,7 +206,7 @@ export const Sidebar = () => {
         ))}
       </Box>
 
-      {/* Promo Card matching the design style */}
+      {/* Promo Card */}
       <Box sx={{ p: 2 }}>
         <Paper
           elevation={0}
@@ -226,7 +246,7 @@ export const Sidebar = () => {
             fullWidth
             variant="contained"
             color="primary"
-            onClick={() => navigate('/onboarding/placement-test')}
+            onClick={() => handleNavigate('/onboarding/placement-test')}
             sx={{
               py: 1,
               fontSize: '0.8rem',
@@ -237,6 +257,46 @@ export const Sidebar = () => {
         </Paper>
       </Box>
     </Box>
+  );
+
+  return (
+    <>
+      {/* Permanent Sidebar for desktop (lg and above) */}
+      <Box
+        component="aside"
+        sx={{
+          display: { xs: 'none', lg: 'block' },
+          width: 260,
+          flexShrink: 0,
+          height: '100vh',
+          position: 'sticky',
+          top: 0,
+          borderRight: '1px solid',
+          borderColor: 'divider',
+        }}
+      >
+        {renderContent(false)}
+      </Box>
+
+      {/* Temporary Mobile Drawer (below lg) */}
+      <Drawer
+        variant="temporary"
+        open={Boolean(mobileOpen)}
+        onClose={onClose}
+        ModalProps={{ keepMounted: true }}
+        sx={{
+          display: { xs: 'block', lg: 'none' },
+          '& .MuiDrawer-paper': {
+            boxSizing: 'border-box',
+            width: 280,
+            borderRight: '1px solid',
+            borderColor: 'divider',
+          },
+        }}
+      >
+        {renderContent(true)}
+      </Drawer>
+    </>
   );
 };
 

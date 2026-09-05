@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   AppBar,
   Toolbar,
@@ -9,19 +9,52 @@ import {
   IconButton,
   Tooltip,
   Stack,
+  Button,
 } from '@mui/material';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
+import MenuBookIcon from '@mui/icons-material/MenuBook';
+import MenuIcon from '@mui/icons-material/Menu';
 
-export const Navbar = () => {
+const MOTIVATIONAL_QUOTES = [
+  'Hôm nay là thời điểm lý tưởng để nạp từ vựng mới! ✨',
+  'Mỗi ngày một chút, tiếng Hàn sẽ sớm thành phản xạ! 🚀',
+  'Kiên trì học tập hôm nay, tự tin giao tiếp ngày mai! 🎯',
+  'Thỏ Tokki đang đồng hành cùng bạn trên hành trình này! 🐰',
+  'Luyện nghe và nói mỗi ngày để phản xạ thật tự nhiên! 🎧',
+  'Tích lũy cà rốt và giữ vững ngọn lửa chuỗi học tập nhé! 🔥',
+  'Đừng quên ôn lại các mẫu câu giao tiếp đời sống hôm nay! 💬',
+  'Một chút nỗ lực mỗi ngày tạo nên sự thay đổi kỳ diệu! 🌸',
+  'Học tiếng Hàn vui vẻ, tiến bộ không ngừng cùng Tokki! 🥕',
+  'Hãy hoàn thành 1 bài học nhỏ để nhận thêm EXP ngay nào! ⚡',
+  'Nghe nhiều, lặp lại nhiều là chìa khóa nói tiếng Hàn lưu loát! 🗣️',
+  'Thành công bắt đầu từ những thói quen học tập nhỏ mỗi ngày! 🌟',
+];
+
+export const Navbar = ({ onDrawerToggle }) => {
   const { user } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Greeting based on actual time of day
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Chào buổi sáng';
+    if (hour < 18) return 'Chào buổi chiều';
+    return 'Chào buổi tối';
+  }, []);
+
+  // Random inspirational quote per session / page visit
+  const randomQuote = useMemo(() => {
+    const randomIndex = Math.floor(Math.random() * MOTIVATIONAL_QUOTES.length);
+    return MOTIVATIONAL_QUOTES[randomIndex];
+  }, []);
 
   return (
     <AppBar
@@ -39,23 +72,91 @@ export const Navbar = () => {
         borderColor: 'divider',
       }}
     >
-      <Toolbar sx={{ justifyContent: 'space-between', px: { xs: 2, md: 4 }, alignItems: 'flex-start' }}>
+      <Toolbar sx={{ justifyContent: 'space-between', px: { xs: 1.5, sm: 2, md: 4 }, alignItems: 'center' }}>
+        {/* Hamburger Menu button for mobile / tablet (< lg) */}
+        <IconButton
+          color="inherit"
+          aria-label="open drawer"
+          edge="start"
+          onClick={onDrawerToggle}
+          sx={{
+            mr: { xs: 1, sm: 2 },
+            display: { xs: 'inline-flex', lg: 'none' },
+            p: 1,
+            borderRadius: '12px',
+            border: 1,
+            borderColor: 'divider',
+          }}
+        >
+          <MenuIcon />
+        </IconButton>
+
         {/* Greeting on the left side (fills the empty space) */}
-        <Box sx={{ flex: 1 }}>
-          <Typography variant="h5" sx={{ fontWeight: 800, mb: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-            Chào buổi sáng, {user?.name || user?.email || 'bạn'}! <span style={{ fontSize: '1.5rem' }}>👋</span>
+        <Box sx={{ flex: 1, minWidth: 0, mr: 1 }}>
+          <Typography
+            variant="h5"
+            noWrap
+            sx={{
+              fontWeight: 800,
+              mb: 0.5,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              fontSize: { xs: '1rem', sm: '1.25rem', md: '1.5rem' },
+            }}
+          >
+            {greeting}, {user?.name || user?.email?.split('@')?.[0] || 'bạn'}! <span style={{ fontSize: '1.2rem' }}>👋</span>
           </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 }, flexWrap: 'wrap' }}>
             <Chip 
               label="Học viên Cấp 2 • TOPIK I Sơ cấp" 
               size="small" 
-              sx={{ bgcolor: 'rgba(151, 63, 105, 0.1)', color: 'primary.main', fontWeight: 700, fontSize: '0.7rem' }} 
+              sx={{
+                bgcolor: 'rgba(151, 63, 105, 0.1)',
+                color: 'primary.main',
+                fontWeight: 700,
+                fontSize: '0.7rem',
+                display: { xs: 'none', sm: 'inline-flex' },
+              }} 
             />
-            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-              Hôm nay là thời điểm lý tưởng để nạp từ vựng mới!
+            <Typography
+              variant="caption"
+              sx={{
+                color: 'text.secondary',
+                fontStyle: 'italic',
+                display: { xs: 'none', md: 'inline' },
+              }}
+            >
+              {randomQuote}
             </Typography>
           </Box>
         </Box>
+
+        {/* Navigation Tab: Từ vựng */}
+        <Stack direction="row" spacing={1} sx={{ mr: { xs: 1, sm: 2 }, alignItems: 'center', display: { xs: 'none', sm: 'flex' } }}>
+          <Button
+            component={Link}
+            to="/vocabulary"
+            startIcon={<MenuBookIcon sx={{ color: '#9D446E' }} />}
+            sx={{
+              textTransform: 'none',
+              fontWeight: 700,
+              fontSize: '0.88rem',
+              color: location.pathname.startsWith('/vocabulary') ? '#9D446E' : 'text.primary',
+              bgcolor: location.pathname.startsWith('/vocabulary') ? '#FDF2F4' : 'background.paper',
+              borderRadius: '12px',
+              px: 1.8,
+              py: 0.7,
+              border: 1,
+              borderColor: location.pathname.startsWith('/vocabulary') ? '#9D446E' : 'divider',
+              boxShadow: location.pathname.startsWith('/vocabulary') ? '0 2px 8px rgba(157,68,110,0.15)' : 'none',
+              transition: 'all 0.2s ease',
+              '&:hover': { bgcolor: '#FDF2F4', borderColor: '#9D446E', color: '#9D446E' },
+            }}
+          >
+            Từ vựng
+          </Button>
+        </Stack>
 
         {/* Gamification Counters & Actions */}
         <Stack direction="row" spacing={1.5} alignItems="center">
