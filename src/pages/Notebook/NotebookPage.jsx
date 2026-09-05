@@ -76,6 +76,9 @@ export const NotebookPage = () => {
   // Toast notifications
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
 
+  // Track item IDs đã đánh giá trong session hiện tại để tránh spam điểm
+  const [reviewedIds, setReviewedIds] = useState(new Set());
+
   // Debounce search input
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -137,6 +140,12 @@ export const NotebookPage = () => {
 
   // Review word SRS (Again / Hard / Good / Easy)
   const handleReviewWord = async (item, rating) => {
+    // Chặn spam: đã đánh giá rồi thì không cho đánh lại trong session
+    if (reviewedIds.has(item.id)) return;
+
+    // Đánh dấu ngay để disable buttons trước khi await
+    setReviewedIds((prev) => new Set(prev).add(item.id));
+
     try {
       await vocabApi.reviewUserVocab(item.id, rating);
       queryClient.invalidateQueries({ queryKey: ['userNotebook', user?.id] });
@@ -155,6 +164,12 @@ export const NotebookPage = () => {
       });
     } catch (err) {
       console.error('Error reviewing vocab:', err);
+      // Rollback nếu API lỗi để user có thể thử lại
+      setReviewedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
     }
   };
 
@@ -654,50 +669,56 @@ export const NotebookPage = () => {
 
                     {/* SRS Review Quick Rating */}
                     <Box sx={{ pt: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
-                      <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 1, fontWeight: 700 }}>
-                        Đánh giá ghi nhớ:
-                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                        <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
+                          Đánh giá ghi nhớ:
+                        </Typography>
+                        {reviewedIds.has(item.id) && (
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              color: '#16A34A',
+                              fontWeight: 700,
+                              fontSize: '0.68rem',
+                              bgcolor: '#DCFCE7',
+                              px: 1,
+                              py: 0.3,
+                              borderRadius: '6px',
+                            }}
+                          >
+                            ✓ Đã đánh giá
+                          </Typography>
+                        )}
+                      </Box>
                       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0.8 }}>
-                        <Button
-                          fullWidth
-                          size="small"
-                          variant="outlined"
-                          color="error"
-                          onClick={() => handleReviewWord(item, 'again')}
-                          sx={{ py: 0.4, fontSize: '0.7rem', fontWeight: 700, borderRadius: '8px', textTransform: 'none' }}
-                        >
-                          Quên
-                        </Button>
-                        <Button
-                          fullWidth
-                          size="small"
-                          variant="outlined"
-                          color="warning"
-                          onClick={() => handleReviewWord(item, 'hard')}
-                          sx={{ py: 0.4, fontSize: '0.7rem', fontWeight: 700, borderRadius: '8px', textTransform: 'none' }}
-                        >
-                          Khó
-                        </Button>
-                        <Button
-                          fullWidth
-                          size="small"
-                          variant="outlined"
-                          color="primary"
-                          onClick={() => handleReviewWord(item, 'good')}
-                          sx={{ py: 0.4, fontSize: '0.7rem', fontWeight: 700, borderRadius: '8px', textTransform: 'none' }}
-                        >
-                          Nhớ
-                        </Button>
-                        <Button
-                          fullWidth
-                          size="small"
-                          variant="outlined"
-                          color="success"
-                          onClick={() => handleReviewWord(item, 'easy')}
-                          sx={{ py: 0.4, fontSize: '0.7rem', fontWeight: 700, borderRadius: '8px', textTransform: 'none' }}
-                        >
-                          Dễ
-                        </Button>
+                        {[
+                          { rating: 'again', label: 'Quên', color: 'error' },
+                          { rating: 'hard',  label: 'Khó',  color: 'warning' },
+                          { rating: 'good',  label: 'Nhớ',  color: 'primary' },
+                          { rating: 'easy',  label: 'Dễ',   color: 'success' },
+                        ].map(({ rating, label, color }) => (
+                          <Button
+                            key={rating}
+                            fullWidth
+                            size="small"
+                            variant="outlined"
+                            color={color}
+                            disabled={reviewedIds.has(item.id)}
+                            onClick={() => handleReviewWord(item, rating)}
+                            sx={{
+                              py: 0.4,
+                              fontSize: '0.7rem',
+                              fontWeight: 700,
+                              borderRadius: '8px',
+                              textTransform: 'none',
+                              '&.Mui-disabled': {
+                                opacity: 0.4,
+                              },
+                            }}
+                          >
+                            {label}
+                          </Button>
+                        ))}
                       </Box>
                     </Box>
                   </Paper>
