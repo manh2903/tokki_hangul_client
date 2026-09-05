@@ -90,7 +90,7 @@ export const ProfilePage = () => {
               <Divider />
 
               <Grid container spacing={2}>
-                <Grid item xs={6}>
+                <Grid item xs={12} sm={4}>
                   <Paper
                     elevation={0}
                     sx={{
@@ -102,15 +102,18 @@ export const ProfilePage = () => {
                     }}
                   >
                     <Typography variant="caption" sx={{ color: 'secondary.main', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      <LocalFireDepartmentIcon fontSize="inherit" /> Chuỗi học tập
+                      <LocalFireDepartmentIcon fontSize="inherit" /> Chuỗi ngày học
                     </Typography>
                     <Typography variant="h6" sx={{ fontWeight: 800, mt: 0.5 }}>
                       {user?.streakDays || user?.streak_days || 0} ngày liên tục
                     </Typography>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.3, fontSize: '0.75rem' }}>
+                      Duy trì học mỗi ngày
+                    </Typography>
                   </Paper>
                 </Grid>
 
-                <Grid item xs={6}>
+                <Grid item xs={6} sm={4}>
                   <Paper
                     elevation={0}
                     sx={{
@@ -122,10 +125,36 @@ export const ProfilePage = () => {
                     }}
                   >
                     <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      <AutoAwesomeIcon fontSize="inherit" /> Điểm tích luỹ
+                      <AutoAwesomeIcon fontSize="inherit" /> Điểm kinh nghiệm
                     </Typography>
                     <Typography variant="h6" sx={{ fontWeight: 800, mt: 0.5 }}>
                       {user?.expPoints || user?.points || 0} EXP
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.3, fontSize: '0.75rem' }}>
+                      Tích luỹ để thăng hạng
+                    </Typography>
+                  </Paper>
+                </Grid>
+
+                <Grid item xs={6} sm={4}>
+                  <Paper
+                    elevation={0}
+                    sx={{
+                      p: 2,
+                      borderRadius: '14px',
+                      bgcolor: (theme) => (theme.palette.mode === 'light' ? '#fff7ed' : 'rgba(249, 115, 22, 0.15)'),
+                      border: 1,
+                      borderColor: '#fdba74',
+                    }}
+                  >
+                    <Typography variant="caption" sx={{ color: '#ea580c', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      🥕 Cà rốt Tokki
+                    </Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 800, mt: 0.5, color: '#ea580c' }}>
+                      {user?.carrots || 0} củ
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.3, fontSize: '0.75rem' }}>
+                      Đổi vật phẩm & cứu chuỗi
                     </Typography>
                   </Paper>
                 </Grid>

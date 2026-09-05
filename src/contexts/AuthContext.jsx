@@ -121,6 +121,22 @@ export const AuthProvider = ({ children }) => {
     });
   };
 
+  const updateProgress = (gamification) => {
+    if (!gamification) return;
+    setUser((prev) => {
+      const updated = {
+        ...prev,
+        streakDays: gamification.streakDays !== undefined ? gamification.streakDays : prev?.streakDays || 0,
+        longestStreak: gamification.longestStreak !== undefined ? gamification.longestStreak : prev?.longestStreak || 0,
+        expPoints: gamification.expPoints !== undefined ? gamification.expPoints : prev?.expPoints || 0,
+        carrots: gamification.carrots !== undefined ? gamification.carrots : prev?.carrots || 0,
+        totalStudyTimeMin: gamification.totalStudyTimeMin !== undefined ? gamification.totalStudyTimeMin : prev?.totalStudyTimeMin || 0,
+      };
+      localStorage.setItem('user', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -133,6 +149,7 @@ export const AuthProvider = ({ children }) => {
         register,
         logout,
         updateUser,
+        updateProgress,
       }}
     >
       {children}

@@ -11,6 +11,7 @@ import {
   Paper,
   LinearProgress,
   CircularProgress,
+  Tooltip,
 } from '@mui/material';
 import { useAuth } from '@/contexts/AuthContext';
 import { topikApi, videosApi, conversationApi, progressApi } from '@/api';
@@ -34,7 +35,6 @@ export const HomePage = () => {
   const navigate = useNavigate();
 
   const [recommendations, setRecommendations] = useState([]);
-  const [topikLevels, setTopikLevels] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -51,10 +51,6 @@ export const HomePage = () => {
         const dialogues = dialoguesRes.status === 'fulfilled' ? (dialoguesRes.value?.data || dialoguesRes.value || []) : [];
         const videos = videosRes.status === 'fulfilled' ? (videosRes.value?.data || videosRes.value || []) : [];
 
-        if (Array.isArray(levels)) {
-          setTopikLevels(levels);
-        }
-
         // Generate dynamic recommendations from backend content
         const dynamicRecs = [];
 
@@ -64,11 +60,12 @@ export const HomePage = () => {
             id: `diag_${d.id}`,
             type: 'conversation',
             title: d.title || 'Luyện phản xạ hội thoại',
-            hangul: d.koreanTitle || d.korean_title || '한국어 대화 연습',
+            hangul: '한국어 대화 연습', // Default since model doesn't have koreanTitle
             duration: '10 phút',
-            level: d.level || 'Sơ cấp',
+            level: d.topikLevel ? `TOPIK ${d.topikLevel}` : 'Sơ cấp',
             route: `/conversation/dialogue/${d.id}`,
             reason: 'Tăng phản xạ giao tiếp & luyện phát âm theo ngữ cảnh thực tế',
+            icon: <LocalCafeIcon sx={{ fontSize: 24, color: 'primary.main' }} />
           });
         }
 
@@ -77,26 +74,29 @@ export const HomePage = () => {
           dynamicRecs.push({
             id: `topik_${l.id}`,
             type: 'topik',
-            title: `Luyện đề & Ngữ pháp ${l.level_name || l.name || 'TOPIK'}`,
-            hangul: `${l.level_name || l.name || 'TOPIK'} 핵심 문법`,
+            title: `Luyện đề & Ngữ pháp ${l.name || 'TOPIK'}`,
+            hangul: `${l.name || 'TOPIK'} 핵심 문법`,
             duration: '15 phút',
-            level: l.level_name || 'TOPIK',
+            level: l.levelGroup || 'TOPIK',
             route: '/topik',
             reason: 'Bổ sung cấu trúc ngữ pháp trọng tâm và bài tập trắc nghiệm',
+            icon: <SchoolIcon sx={{ fontSize: 24, color: '#0288d1' }} />
           });
         }
 
         if (Array.isArray(videos) && videos.length > 0) {
           const v = videos[0];
+          const durStr = v.durationSeconds ? `${Math.floor(v.durationSeconds / 60)} phút` : '5 phút';
           dynamicRecs.push({
             id: `vid_${v.id}`,
             type: 'video',
             title: v.title || 'Học tiếng Hàn qua video',
-            hangul: v.koreanTitle || v.korean_title || '영상으로 배우는 한국어',
-            duration: v.duration || '5 phút',
-            level: v.level || 'Mọi trình độ',
+            hangul: '영상으로 배우는 한국어',
+            duration: durStr,
+            level: v.topikLevel ? `TOPIK ${v.topikLevel}` : 'Mọi trình độ',
             route: `/video/${v.id}`,
             reason: 'Luyện nghe tự nhiên và tra từ vựng qua phụ đề song ngữ',
+            icon: <OndemandVideoIcon sx={{ fontSize: 24, color: '#2e7d32' }} />
           });
         }
 
@@ -117,111 +117,115 @@ export const HomePage = () => {
 
   return (
     <Stack spacing={4}>
-      {/* 1. Welcome & Daily Goal Banner */}
-      <Paper
-        elevation={0}
+      {/* Daily Streak & Gamification Banner */}
+      <Box
         sx={{
-          p: { xs: 3, md: 4 },
+          p: { xs: 2.5, md: 3 },
           borderRadius: '24px',
-          bgcolor: 'primary.main',
-          color: '#ffffff',
-          position: 'relative',
-          overflow: 'hidden',
+          background: 'linear-gradient(135deg, #9D446E 0%, #762D50 100%)',
+          color: '#fff',
+          display: 'flex',
+          flexDirection: { xs: 'column', md: 'row' },
+          justifyContent: 'space-between',
+          alignItems: { xs: 'flex-start', md: 'center' },
+          gap: 2.5,
+          boxShadow: '0 10px 25px rgba(157, 68, 110, 0.25)',
         }}
       >
-        <Grid container spacing={3} alignItems="center" justifyContent="space-between">
-          <Grid item xs={12} md={7}>
-            <Stack spacing={1.5}>
-              <Chip
-                icon={<AutoAwesomeIcon sx={{ color: '#ffffff !important', fontSize: 16 }} />}
-                label="Học tiếng Hàn thông minh"
-                size="small"
-                sx={{
-                  bgcolor: 'rgba(255, 255, 255, 0.2)',
-                  color: '#ffffff',
-                  fontWeight: 700,
-                  width: 'fit-content',
-                }}
-              />
-              <Typography variant="h4" sx={{ fontWeight: 800 }}>
-                안녕하세요, {user?.name || user?.email || 'Học viên'}! 👋
-              </Typography>
-              <Typography variant="body2" sx={{ opacity: 0.9, lineHeight: 1.6 }}>
-                Chào mừng bạn quay trở lại. Hãy tiếp tục chuỗi bài học hôm nay để đạt mục tiêu chứng chỉ và giao tiếp tự tin.
-              </Typography>
-            </Stack>
-          </Grid>
+        <Box>
+          <Typography variant="h5" sx={{ fontWeight: 800, mb: 0.5 }}>
+            안녕하세요, {user?.name || 'bạn học'}! 👋
+          </Typography>
+          <Typography variant="body2" sx={{ opacity: 0.9 }}>
+            Duy trì chuỗi học tập mỗi ngày để ghi nhớ tiếng Hàn bền vững cùng Tokki Hangul.
+          </Typography>
+        </Box>
 
-          {/* Daily Goal Gauge */}
-          <Grid item xs={12} md={5}>
-            <Paper
-              elevation={0}
+        <Stack direction="row" spacing={2} sx={{ flexWrap: 'wrap', gap: 1.5 }}>
+          <Tooltip title="Chuỗi học tập mỗi ngày: Giữ lửa liên tục để nâng cao hiệu quả ghi nhớ">
+            <Box
               sx={{
-                p: 2.5,
+                bgcolor: 'rgba(255, 255, 255, 0.18)',
+                backdropFilter: 'blur(8px)',
+                px: 2,
+                py: 1.2,
                 borderRadius: '16px',
-                bgcolor: 'rgba(0, 0, 0, 0.2)',
-                color: '#ffffff',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                textAlign: 'center',
+                cursor: 'pointer',
               }}
             >
-              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                <Typography variant="caption" sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  <AccessTimeIcon fontSize="inherit" /> Mục tiêu hôm nay
-                </Typography>
-                <Typography variant="caption" sx={{ fontWeight: 700 }}>
-                  {todayStudiedMinutes}/{dailyGoalMinutes} phút
-                </Typography>
-              </Stack>
+              <Typography variant="caption" sx={{ opacity: 0.85, display: 'block', fontWeight: 600 }}>
+                Chuỗi ngày học 🔥
+              </Typography>
+              <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                {user?.streakDays || 0} ngày
+              </Typography>
+            </Box>
+          </Tooltip>
 
-              <LinearProgress
-                variant="determinate"
-                value={dailyProgress}
-                sx={{
-                  height: 10,
-                  borderRadius: 5,
-                  bgcolor: 'rgba(255, 255, 255, 0.2)',
-                  '& .MuiLinearProgress-bar': {
-                    bgcolor: 'secondary.light',
-                  },
-                  mb: 1,
-                }}
-              />
+          <Tooltip title="Điểm kinh nghiệm: Tích lũy qua bài học để thăng hạng và đua top học tập">
+            <Box
+              sx={{
+                bgcolor: 'rgba(255, 255, 255, 0.18)',
+                backdropFilter: 'blur(8px)',
+                px: 2,
+                py: 1.2,
+                borderRadius: '16px',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                textAlign: 'center',
+                cursor: 'pointer',
+              }}
+            >
+              <Typography variant="caption" sx={{ opacity: 0.85, display: 'block', fontWeight: 600 }}>
+                Kinh nghiệm ✨
+              </Typography>
+              <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                {user?.expPoints || 0} EXP
+              </Typography>
+            </Box>
+          </Tooltip>
 
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                  {dailyProgress}% hoàn thành
-                </Typography>
-                <Chip
-                  icon={<LocalFireDepartmentIcon sx={{ color: '#ffb74d !important', fontSize: 14 }} />}
-                  label={`Streak ${user?.streakDays || 0} ngày`}
-                  size="small"
-                  sx={{
-                    bgcolor: 'rgba(255, 255, 255, 0.15)',
-                    color: '#ffffff',
-                    height: 22,
-                    fontSize: '0.7rem',
-                    fontWeight: 700,
-                  }}
-                />
-              </Stack>
-            </Paper>
-          </Grid>
-        </Grid>
-      </Paper>
+          <Tooltip title="Cà rốt Tokki: Đơn vị tích lũy dùng để mua bảo vệ chuỗi ngày và đổi vật phẩm">
+            <Box
+              sx={{
+                bgcolor: 'rgba(255, 255, 255, 0.18)',
+                backdropFilter: 'blur(8px)',
+                px: 2,
+                py: 1.2,
+                borderRadius: '16px',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                textAlign: 'center',
+                cursor: 'pointer',
+              }}
+            >
+              <Typography variant="caption" sx={{ opacity: 0.85, display: 'block', fontWeight: 600 }}>
+                Cà rốt tích luỹ 🥕
+              </Typography>
+              <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                {user?.carrots || 0} củ
+              </Typography>
+            </Box>
+          </Tooltip>
+        </Stack>
+      </Box>
 
-      {/* 2. AI Daily Smart Recommendations */}
+      {/* 2. AI Daily Smart Recommendations (moved up) */}
       <Box>
-        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-          <Typography variant="h6" sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1 }}>
-            <PsychologyIcon color="primary" /> Gợi ý bài học hôm nay
+        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+          <Typography variant="h5" sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1.5, color: 'text.primary' }}>
+            <Box sx={{ p: 1, borderRadius: '12px', bgcolor: 'rgba(151, 63, 105, 0.1)', color: 'primary.main', display: 'flex' }}>
+              <PsychologyIcon />
+            </Box>
+            Lộ trình hôm nay của bạn
           </Typography>
           <Button
             size="small"
             endIcon={<ArrowForwardIcon />}
             onClick={() => navigate('/topik')}
-            sx={{ fontWeight: 700 }}
+            sx={{ fontWeight: 700, color: 'text.secondary' }}
           >
-            Xem tất cả bài học
+            Xem tất cả
           </Button>
         </Stack>
 
@@ -233,200 +237,180 @@ export const HomePage = () => {
           <Grid container spacing={3}>
             {recommendations.map((rec) => (
               <Grid item xs={12} md={4} key={rec.id}>
-                <Card
+                <Box
                   sx={{
+                    bgcolor: 'background.paper',
+                    borderRadius: '24px',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    boxShadow: '0 4px 0 0 rgba(0,0,0,0.05)',
+                    transition: 'all 0.2s ease',
+                    '&:hover': {
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 6px 0 0 rgba(0,0,0,0.05)',
+                    },
                     height: '100%',
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'space-between',
-                    transition: 'all 0.2s',
-                    '&:hover': {
-                      transform: 'translateY(-4px)',
-                      boxShadow: '0 8px 24px rgba(151, 63, 105, 0.12)',
-                    },
+                    p: 2.5,
                   }}
                 >
-                  <CardContent sx={{ p: 2.5 }}>
-                    <Stack spacing={2}>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center">
-                        <Box
-                          sx={{
-                            width: 40,
-                            height: 40,
-                            borderRadius: '12px',
-                            bgcolor: 'primary.light',
-                            color: 'primary.dark',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
-                        >
-                          {rec.type === 'conversation' ? (
-                            <LocalCafeIcon fontSize="small" />
-                          ) : rec.type === 'video' ? (
-                            <OndemandVideoIcon fontSize="small" />
-                          ) : (
-                            <MenuBookIcon fontSize="small" />
-                          )}
-                        </Box>
-                        <Chip label={rec.level} size="small" color="primary" variant="outlined" />
-                      </Stack>
-
-                      <Box>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'text.primary' }}>
-                          {rec.title}
-                        </Typography>
-                        {rec.hangul && (
-                          <Typography variant="body2" sx={{ color: 'primary.main', fontWeight: 700, mt: 0.25 }}>
-                            {rec.hangul}
-                          </Typography>
-                        )}
+                  <Stack spacing={2} sx={{ flex: 1 }}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <Box
+                        sx={{
+                          width: 48,
+                          height: 48,
+                          borderRadius: '16px',
+                          bgcolor: 'background.default',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          border: '1px solid',
+                          borderColor: 'divider',
+                        }}
+                      >
+                        {rec.icon}
                       </Box>
-
-                      {rec.reason && (
-                        <Paper
-                          elevation={0}
-                          sx={{
-                            p: 1.5,
-                            borderRadius: '12px',
-                            bgcolor: (theme) => (theme.palette.mode === 'light' ? '#fbf9f1' : '#252525'),
-                            border: 1,
-                            borderColor: 'divider',
-                          }}
-                        >
-                          <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
-                            💡 {rec.reason}
-                          </Typography>
-                        </Paper>
-                      )}
+                      <Chip label={rec.level} size="small" sx={{ fontWeight: 700, bgcolor: (theme) => (theme.palette.mode === 'light' ? '#f5f3e9' : 'rgba(255, 255, 255, 0.1)'), color: 'text.secondary' }} />
                     </Stack>
-                  </CardContent>
 
-                  <Box sx={{ p: 2, pt: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography variant="caption" sx={{ color: 'text.secondary', display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      <AccessTimeIcon fontSize="inherit" /> {rec.duration}
+                    <Box>
+                      <Typography variant="h6" sx={{ fontWeight: 800, color: 'text.primary', lineHeight: 1.3 }}>
+                        {rec.title}
+                      </Typography>
+                      {rec.hangul && (
+                        <Typography variant="body2" sx={{ color: 'primary.main', fontWeight: 700, mt: 0.5 }}>
+                          {rec.hangul}
+                        </Typography>
+                      )}
+                    </Box>
+
+                    {rec.reason && (
+                      <Box
+                        sx={{
+                          p: 1.5,
+                          borderRadius: '16px',
+                          bgcolor: 'background.default',
+                          border: '1px solid',
+                          borderColor: 'divider',
+                        }}
+                      >
+                        <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', fontWeight: 600 }}>
+                          💡 {rec.reason}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Stack>
+
+                  <Box sx={{ mt: 3, pt: 2, borderTop: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', display: 'flex', alignItems: 'center', gap: 0.5, fontWeight: 700 }}>
+                      <AccessTimeIcon fontSize="small" /> {rec.duration}
                     </Typography>
                     <Button
                       size="small"
                       variant="contained"
-                      startIcon={<PlayArrowIcon />}
+                      color="primary"
+                      endIcon={<PlayArrowIcon />}
                       onClick={() => navigate(rec.route)}
                     >
-                      Học ngay
+                      Bắt đầu
                     </Button>
                   </Box>
-                </Card>
+                </Box>
               </Grid>
             ))}
           </Grid>
         ) : (
-          <Paper elevation={0} sx={{ p: 4, textAlign: 'center', border: 1, borderColor: 'divider', borderRadius: '16px' }}>
-            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
+          <Box sx={{ bgcolor: 'background.paper', borderRadius: '24px', border: '1px solid', borderColor: 'divider', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05)', p: 5, textAlign: 'center' }}>
+            <Typography variant="body1" sx={{ color: 'text.secondary', mb: 2, fontWeight: 600 }}>
               Chưa có dữ liệu bài học gợi ý. Bạn có thể chọn các chương trình học bên dưới để bắt đầu ngay!
             </Typography>
             <Button variant="contained" color="primary" onClick={() => navigate('/topik')}>
               Khám phá khóa học TOPIK
             </Button>
-          </Paper>
+          </Box>
         )}
       </Box>
 
       {/* 3. Key Learning Hubs Grid */}
       <Box>
-        <Typography variant="h6" sx={{ fontWeight: 800, mb: 2 }}>
-          Chương trình học tập trọng tâm
+        <Typography variant="h5" sx={{ fontWeight: 800, mb: 3, color: 'text.primary' }}>
+          Khám phá thêm
         </Typography>
 
         <Grid container spacing={3}>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card
-              onClick={() => navigate('/topik')}
-              sx={{
-                p: 1,
-                cursor: 'pointer',
-                borderLeft: '4px solid #973f69',
-                '&:hover': { transform: 'translateY(-4px)' },
-              }}
-            >
-              <CardContent>
-                <SchoolIcon sx={{ color: 'primary.main', fontSize: 32, mb: 1 }} />
-                <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-                  Luyện thi TOPIK I & II
+          {[
+            {
+              title: 'Luyện thi TOPIK',
+              desc: 'Lộ trình các kỹ năng: Nghe, Đọc, Viết & Ngữ pháp.',
+              icon: <SchoolIcon sx={{ color: '#0288d1', fontSize: 32 }} />,
+              color: '#0288d1',
+              route: '/topik',
+            },
+            {
+              title: 'Giao tiếp & Đóng vai AI',
+              desc: 'Luyện nói phản xạ với AI theo các tình huống thực tế.',
+              icon: <LocalCafeIcon sx={{ color: '#ff6b8b', fontSize: 32 }} />,
+              color: '#ff6b8b',
+              route: '/conversation',
+            },
+            {
+              title: 'Học qua Video',
+              desc: 'Video phụ đề song ngữ tương tác tra từ vựng trực tiếp.',
+              icon: <OndemandVideoIcon sx={{ color: '#ed6c02', fontSize: 32 }} />,
+              color: '#ed6c02',
+              route: '/video',
+            },
+            {
+              title: 'Ôn tập SRS',
+              desc: 'Ghi nhớ từ vựng lâu dài qua Spaced Repetition.',
+              icon: <StyleIcon sx={{ color: '#2e7d32', fontSize: 32 }} />,
+              color: '#2e7d32',
+              route: '/review',
+            },
+          ].map((hub, i) => (
+            <Grid item xs={12} sm={6} md={3} key={i}>
+              <Box
+                onClick={() => navigate(hub.route)}
+                sx={{
+                  bgcolor: 'background.paper',
+                  borderRadius: '24px',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  boxShadow: '0 4px 0 0 rgba(0,0,0,0.05)',
+                  transition: 'all 0.2s ease',
+                  '&:hover': {
+                    transform: 'translateY(-2px)',
+                    boxShadow: '0 6px 0 0 rgba(0,0,0,0.05)',
+                  },
+                  p: 2.5,
+                  cursor: 'pointer',
+                  borderTop: `4px solid ${hub.color}`,
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
+                <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box sx={{ p: 1, borderRadius: '12px', bgcolor: 'background.default' }}>
+                    {hub.icon}
+                  </Box>
+                  <ArrowForwardIcon sx={{ color: 'text.disabled', fontSize: 20 }} />
+                </Box>
+                <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'text.primary', mb: 1 }}>
+                  {hub.title}
                 </Typography>
-                <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
-                  Lộ trình các kỹ năng: Nghe, Đọc, Viết & Ngữ pháp bám sát đề thi.
+                <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 500, lineHeight: 1.5 }}>
+                  {hub.desc}
                 </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid item xs={12} sm={6} md={3}>
-            <Card
-              onClick={() => navigate('/conversation')}
-              sx={{
-                p: 1,
-                cursor: 'pointer',
-                borderLeft: '4px solid #ff6b8b',
-                '&:hover': { transform: 'translateY(-4px)' },
-              }}
-            >
-              <CardContent>
-                <LocalCafeIcon sx={{ color: 'secondary.main', fontSize: 32, mb: 1 }} />
-                <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-                  Giao tiếp & Đóng vai AI
-                </Typography>
-                <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
-                  Luyện nói phản xạ với AI theo các tình huống thực tế tại Hàn Quốc.
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid item xs={12} sm={6} md={3}>
-            <Card
-              onClick={() => navigate('/video')}
-              sx={{
-                p: 1,
-                cursor: 'pointer',
-                borderLeft: '4px solid #0288d1',
-                '&:hover': { transform: 'translateY(-4px)' },
-              }}
-            >
-              <CardContent>
-                <OndemandVideoIcon sx={{ color: '#0288d1', fontSize: 32, mb: 1 }} />
-                <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-                  Học qua Video Song ngữ
-                </Typography>
-                <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
-                  Video phụ đề song ngữ tương tác tra từ vựng trực tiếp khi xem.
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid item xs={12} sm={6} md={3}>
-            <Card
-              onClick={() => navigate('/review')}
-              sx={{
-                p: 1,
-                cursor: 'pointer',
-                borderLeft: '4px solid #2e7d32',
-                '&:hover': { transform: 'translateY(-4px)' },
-              }}
-            >
-              <CardContent>
-                <StyleIcon sx={{ color: '#2e7d32', fontSize: 32, mb: 1 }} />
-                <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-                  Ôn tập SRS & Game
-                </Typography>
-                <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
-                  Ghi nhớ từ vựng lâu dài qua Spaced Repetition và mini game.
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
+              </Box>
+            </Grid>
+          ))}
         </Grid>
       </Box>
     </Stack>
   );
 };
+

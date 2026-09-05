@@ -7,10 +7,14 @@ import { MobileNav } from './MobileNav';
 
 export const MainLayout = () => {
   return (
-    <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', bgcolor: 'background.default' }}>
-      <Navbar />
-      <Box sx={{ flex: 1, display: 'flex', width: '100%', minWidth: 0 }}>
-        <Sidebar />
+    <Box sx={{ minHeight: '100vh', display: 'flex', bgcolor: 'background.default' }}>
+      {/* Full-height Sidebar on desktop */}
+      <Sidebar />
+      
+      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        {/* Navbar only spans the main content area */}
+        <Navbar />
+        
         <Box
           component="main"
           sx={{
@@ -27,6 +31,8 @@ export const MainLayout = () => {
           </Box>
         </Box>
       </Box>
+      
+      {/* Mobile navigation remains at bottom for xs screens */}
       <MobileNav />
     </Box>
   );

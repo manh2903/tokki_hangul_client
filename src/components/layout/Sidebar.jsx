@@ -10,7 +10,7 @@ import {
   Chip,
   Button,
 } from '@mui/material';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
 import HomeIcon from '@mui/icons-material/Home';
 import ExploreIcon from '@mui/icons-material/Explore';
 import SchoolIcon from '@mui/icons-material/School';
@@ -21,17 +21,33 @@ import StyleIcon from '@mui/icons-material/Style';
 import InsightsIcon from '@mui/icons-material/Insights';
 import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
 import PhoneInTalkIcon from '@mui/icons-material/PhoneInTalk';
+import SparklesIcon from '@mui/icons-material/AutoAwesome';
 
-const NAV_ITEMS = [
-  { label: 'Trang chủ', path: '/app', icon: HomeIcon },
-  { label: 'Gọi thoại Live AI', path: '/ai-voice-call', icon: PhoneInTalkIcon, badge: 'Live' },
-  { label: 'Lộ trình AI', path: '/onboarding/path-preview', icon: ExploreIcon, badge: 'Smart' },
-  { label: 'Luyện thi TOPIK', path: '/topik', icon: SchoolIcon },
-  { label: 'Giao tiếp & AI', path: '/conversation', icon: RecordVoiceOverIcon },
-  { label: 'Học qua Video', path: '/video', icon: OndemandVideoIcon },
-  { label: 'AI Tutor 24/7', path: '/ai-tutor', icon: SmartToyIcon, badge: 'AI' },
-  { label: 'Ôn tập SRS & Game', path: '/review', icon: StyleIcon },
-  { label: 'Tiến độ học tập', path: '/progress', icon: InsightsIcon },
+const MENU_SECTIONS = [
+  {
+    title: 'Học tập',
+    items: [
+      { label: 'Trang chủ', path: '/app', icon: HomeIcon },
+      { label: 'Lộ trình AI', path: '/onboarding/path-preview', icon: ExploreIcon, badge: 'Smart' },
+      { label: 'Luyện thi TOPIK', path: '/topik', icon: SchoolIcon },
+      { label: 'Học qua Video', path: '/video', icon: OndemandVideoIcon },
+    ],
+  },
+  {
+    title: 'Kỹ năng & AI',
+    items: [
+      { label: 'Gọi thoại Live AI', path: '/ai-voice-call', icon: PhoneInTalkIcon, badge: 'Live' },
+      { label: 'Giao tiếp & AI', path: '/conversation', icon: RecordVoiceOverIcon },
+      { label: 'AI Tutor 24/7', path: '/ai-tutor', icon: SmartToyIcon, badge: 'AI' },
+    ],
+  },
+  {
+    title: 'Ôn luyện & Phân tích',
+    items: [
+      { label: 'Ôn tập SRS & Game', path: '/review', icon: StyleIcon },
+      { label: 'Tiến độ học tập', path: '/progress', icon: InsightsIcon },
+    ],
+  },
 ];
 
 export const Sidebar = () => {
@@ -39,129 +55,189 @@ export const Sidebar = () => {
   const navigate = useNavigate();
 
   return (
-    <Paper
-      elevation={0}
+    <Box
+      component="aside"
       sx={{
         display: { xs: 'none', lg: 'flex' },
         flexDirection: 'column',
-        justifyContent: 'space-between',
-        width: 250,
+        width: 260,
         flexShrink: 0,
-        height: 'calc(100vh - 64px)',
+        height: '100vh',
         position: 'sticky',
-        top: 64,
-        borderRight: 1,
+        top: 0,
+        borderRight: '1px solid',
         borderColor: 'divider',
-        p: 2,
-        borderRadius: 0,
         bgcolor: 'background.paper',
+        overflowY: 'auto',
+        '&::-webkit-scrollbar': { width: '4px' },
+        '&::-webkit-scrollbar-thumb': { bgcolor: 'transparent' },
+        '&:hover::-webkit-scrollbar-thumb': { bgcolor: 'divider', borderRadius: '10px' },
       }}
     >
-      <Box>
-        <Typography
-          variant="caption"
-          sx={{
-            px: 1.5,
-            py: 1,
-            display: 'block',
-            fontWeight: 800,
-            color: 'text.secondary',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em',
-          }}
-        >
-          Chương trình học
-        </Typography>
-
-        <List component="nav" sx={{ p: 0 }}>
-          {NAV_ITEMS.map((item) => {
-            const Icon = item.icon;
-            const isSelected =
-              item.path === '/app'
-                ? location.pathname === '/app' || location.pathname === '/home'
-                : location.pathname.startsWith(item.path);
-
-            return (
-              <ListItemButton
-                key={item.path}
-                onClick={() => navigate(item.path)}
-                selected={isSelected}
-                sx={{
-                  borderRadius: '12px',
-                  mb: 0.5,
-                  py: 1,
-                  px: 1.5,
-                  '&.Mui-selected': {
-                    bgcolor: 'primary.main',
-                    color: '#ffffff',
-                    '&:hover': {
-                      bgcolor: 'primary.dark',
-                    },
-                    '& .MuiListItemIcon-root': {
-                      color: '#ffffff',
-                    },
-                  },
-                }}
-              >
-                <ListItemIcon sx={{ minWidth: 36, color: isSelected ? '#ffffff' : 'text.secondary' }}>
-                  <Icon fontSize="small" />
-                </ListItemIcon>
-                <ListItemText
-                  primary={item.label}
-                  primaryTypographyProps={{
-                    fontSize: '0.875rem',
-                    fontWeight: isSelected ? 700 : 500,
-                  }}
-                />
-                {item.badge && (
-                  <Chip
-                    label={item.badge}
-                    size="small"
-                    sx={{
-                      height: 20,
-                      fontSize: '0.65rem',
-                      fontWeight: 800,
-                      bgcolor: isSelected ? 'rgba(255, 255, 255, 0.2)' : 'secondary.light',
-                      color: isSelected ? '#ffffff' : 'secondary.dark',
-                    }}
-                  />
-                )}
-              </ListItemButton>
-            );
-          })}
-        </List>
-      </Box>
-
-      {/* Placement Test Promo Card */}
-      <Paper
-        elevation={0}
+      {/* Brand Logo & Title */}
+      <Box
+        component={Link}
+        to="/app"
         sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1.5,
+          textDecoration: 'none',
+          color: 'inherit',
           p: 2,
-          borderRadius: '16px',
-          bgcolor: (theme) => (theme.palette.mode === 'light' ? '#fbf1f5' : 'rgba(151, 63, 105, 0.15)'),
-          border: 1,
-          borderColor: 'primary.light',
+          pb: 1,
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-          <AssignmentTurnedInIcon sx={{ color: 'primary.main', fontSize: 20 }} />
-          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main' }}>
-            Kiểm tra trình độ
+        <Box
+          component="img"
+          src="/tokki_hangul_logo.svg"
+          alt="Tokki Hangul Logo"
+          sx={{
+            height: 40,
+            width: 'auto',
+            objectFit: 'contain',
+          }}
+        />
+        <Box>
+          <Typography variant="h6" sx={{ fontWeight: 800, color: 'primary.main', lineHeight: 1.1 }}>
+            Tokki Hangul
+          </Typography>
+          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+            HỌC TIẾNG HÀN CÙNG AI
           </Typography>
         </Box>
-        <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 1.5 }}>
-          Test 10 phút để AI tự động tối ưu hoá lộ trình học cho riêng bạn.
-        </Typography>
-        <Button
-          fullWidth
-          variant="contained"
-          size="small"
-          onClick={() => navigate('/onboarding/placement-test')}
-          sx={{ fontSize: '0.75rem', py: 0.75 }}
+      </Box>
+
+      <Box sx={{ flex: 1, p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {MENU_SECTIONS.map((section, idx) => (
+          <Box key={idx}>
+            <Typography
+              variant="caption"
+              sx={{
+                px: 1.5,
+                pb: 1,
+                display: 'block',
+                fontWeight: 800,
+                color: 'text.secondary',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                fontSize: '0.65rem',
+              }}
+            >
+              {section.title}
+            </Typography>
+
+            <List component="nav" sx={{ p: 0, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+              {section.items.map((item) => {
+                const Icon = item.icon;
+                const isSelected =
+                  item.path === '/app'
+                    ? location.pathname === '/app' || location.pathname === '/home'
+                    : location.pathname.startsWith(item.path);
+
+                return (
+                  <ListItemButton
+                    key={item.path}
+                    onClick={() => navigate(item.path)}
+                    selected={isSelected}
+                    sx={{
+                      borderRadius: '12px',
+                      py: 1,
+                      px: 1.5,
+                      color: isSelected ? 'primary.main' : 'text.primary',
+                      bgcolor: isSelected ? (theme) => (theme.palette.mode === 'light' ? '#fbf1f5' : 'rgba(151, 63, 105, 0.15)') : 'transparent',
+                      transition: 'all 0.2s',
+                      '&:hover': {
+                        bgcolor: isSelected ? (theme) => (theme.palette.mode === 'light' ? '#f8e1ec' : 'rgba(151, 63, 105, 0.25)') : (theme) => (theme.palette.mode === 'light' ? '#f5f3e9' : 'action.hover'),
+                      },
+                      '&.Mui-selected': {
+                        bgcolor: (theme) => (theme.palette.mode === 'light' ? '#fbf1f5' : 'rgba(151, 63, 105, 0.15)'),
+                      }
+                    }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 36, color: isSelected ? 'primary.main' : 'text.secondary' }}>
+                      <Icon sx={{ fontSize: 20 }} />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={item.label}
+                      primaryTypographyProps={{
+                        fontSize: '0.85rem',
+                        fontWeight: isSelected ? 800 : 600,
+                      }}
+                    />
+                    {item.badge && (
+                      <Chip
+                        label={item.badge}
+                        size="small"
+                        sx={{
+                          height: 20,
+                          fontSize: '0.65rem',
+                          fontWeight: 800,
+                          bgcolor: isSelected ? 'primary.main' : 'secondary.light',
+                          color: isSelected ? '#ffffff' : 'secondary.dark',
+                        }}
+                      />
+                    )}
+                  </ListItemButton>
+                );
+              })}
+            </List>
+          </Box>
+        ))}
+      </Box>
+
+      {/* Promo Card matching the design style */}
+      <Box sx={{ p: 2 }}>
+        <Paper
+          elevation={0}
+          sx={{
+            p: 2,
+            bgcolor: (theme) => (theme.palette.mode === 'light' ? '#fbf1f5' : 'rgba(151, 63, 105, 0.15)'),
+            textAlign: 'center',
+            border: '1px solid',
+            borderColor: 'primary.light',
+            borderRadius: '24px'
+          }}
         >
-          Làm bài Test ngay
-        </Button>
-      </Paper>
-    </Paper>
+          <Box
+            sx={{
+              width: 44,
+              height: 44,
+              mx: 'auto',
+              mb: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: '12px',
+              background: 'linear-gradient(135deg, #ff6b8b, #973f69)',
+              color: 'white',
+              boxShadow: '0 3px 0 0 #621c3f',
+            }}
+          >
+            <SparklesIcon />
+          </Box>
+          <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'text.primary', mb: 0.5 }}>
+            Bắt đầu kiểm tra
+          </Typography>
+          <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 2, lineHeight: 1.4 }}>
+            Test 10 phút để AI tự động tối ưu hoá lộ trình học cho riêng bạn.
+          </Typography>
+          <Button
+            fullWidth
+            variant="contained"
+            color="primary"
+            onClick={() => navigate('/onboarding/placement-test')}
+            sx={{
+              py: 1,
+              fontSize: '0.8rem',
+            }}
+          >
+            Làm bài Test ngay
+          </Button>
+        </Paper>
+      </Box>
+    </Box>
   );
 };
+
+export default Sidebar;
