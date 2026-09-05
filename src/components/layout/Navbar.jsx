@@ -132,7 +132,7 @@ export const Navbar = ({ onDrawerToggle }) => {
           </Box>
         </Box>
 
-        {/* Navigation Tab: Từ vựng */}
+        {/* Navigation Tab: Từ vựng & Ngữ pháp */}
         <Stack direction="row" spacing={1} sx={{ mr: { xs: 1, sm: 2 }, alignItems: 'center', display: { xs: 'none', sm: 'flex' } }}>
           <Button
             component={Link}
@@ -142,19 +142,19 @@ export const Navbar = ({ onDrawerToggle }) => {
               textTransform: 'none',
               fontWeight: 700,
               fontSize: '0.88rem',
-              color: location.pathname.startsWith('/vocabulary') ? '#9D446E' : 'text.primary',
-              bgcolor: location.pathname.startsWith('/vocabulary') ? '#FDF2F4' : 'background.paper',
+              color: (location.pathname.startsWith('/vocabulary') || location.pathname.startsWith('/grammar') || location.pathname.startsWith('/notebook')) ? '#9D446E' : 'text.primary',
+              bgcolor: (location.pathname.startsWith('/vocabulary') || location.pathname.startsWith('/grammar') || location.pathname.startsWith('/notebook')) ? '#FDF2F4' : 'background.paper',
               borderRadius: '12px',
               px: 1.8,
               py: 0.7,
               border: 1,
-              borderColor: location.pathname.startsWith('/vocabulary') ? '#9D446E' : 'divider',
-              boxShadow: location.pathname.startsWith('/vocabulary') ? '0 2px 8px rgba(157,68,110,0.15)' : 'none',
+              borderColor: (location.pathname.startsWith('/vocabulary') || location.pathname.startsWith('/grammar') || location.pathname.startsWith('/notebook')) ? '#9D446E' : 'divider',
+              boxShadow: (location.pathname.startsWith('/vocabulary') || location.pathname.startsWith('/grammar') || location.pathname.startsWith('/notebook')) ? '0 2px 8px rgba(157,68,110,0.15)' : 'none',
               transition: 'all 0.2s ease',
               '&:hover': { bgcolor: '#FDF2F4', borderColor: '#9D446E', color: '#9D446E' },
             }}
           >
-            Từ vựng
+            Từ vựng & Ngữ pháp
           </Button>
         </Stack>
 

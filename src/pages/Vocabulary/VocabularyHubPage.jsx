@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
-  Grid,
   Typography,
   Paper,
   Chip,
@@ -16,29 +15,24 @@ import {
   Autocomplete,
   Tabs,
   Tab,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Snackbar,
   Alert,
-  LinearProgress,
+  Divider,
 } from '@mui/material';
-import { vocabApi, topicApi, topikApi } from '@/api';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { vocabApi, grammarApi, topicApi, topikApi } from '@/api';
 import { useAuth } from '@/contexts/AuthContext';
+
+// Icons
 import SearchIcon from '@mui/icons-material/Search';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
-import AddIcon from '@mui/icons-material/Add';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
-import AlarmIcon from '@mui/icons-material/Alarm';
-import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
-import SchoolIcon from '@mui/icons-material/School';
-import CloseIcon from '@mui/icons-material/Close';
+import EditNoteIcon from '@mui/icons-material/EditNote';
+import LightbulbOutlinedIcon from '@mui/icons-material/LightbulbOutlined';
 
 const speakKorean = (text) => {
   if (!window.speechSynthesis || !text) return;
@@ -49,59 +43,51 @@ const speakKorean = (text) => {
   window.speechSynthesis.speak(utterance);
 };
 
-// Stage info helper for SRS
-const getSrsStageInfo = (stage = 0) => {
-  if (stage === 0) return { label: 'Mới thêm', color: '#64748B', bgcolor: '#F1F5F9', icon: '🐣' };
-  if (stage <= 2) return { label: 'Đang ghi nhớ', color: '#0284C7', bgcolor: '#E0F2FE', icon: '🧠' };
-  if (stage <= 4) return { label: 'Khá quen thuộc', color: '#D97706', bgcolor: '#FEF3C7', icon: '✨' };
-  return { label: 'Đã thành thạo', color: '#16A34A', bgcolor: '#DCFCE7', icon: '🏆' };
-};
-
-export const VocabularyHubPage = () => {
+export const VocabularyHubPage = ({ defaultTab }) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  // Active Tab: 'bank' (Kho từ vựng) vs 'notebook' (Sổ tay cá nhân)
-  const [activeTab, setActiveTab] = useState('bank');
+  // Determine initial activeTab: searchParams > defaultTab > pathname
+  const initialTab =
+    searchParams.get('tab') ||
+    defaultTab ||
+    (location.pathname === '/grammar' ? 'grammar' : 'bank');
 
-  // --- KHO TỪ VỰNG STATES ---
-  const [vocabularies, setVocabularies] = useState([]);
-  const [topics, setTopics] = useState([]);
-  const [topikLevels, setTopikLevels] = useState([]);
-  const [partsOfSpeech, setPartsOfSpeech] = useState([]);
+  const [activeTab, setActiveTab] = useState(initialTab);
 
-  const [loading, setLoading] = useState(true);
-  const [total, setTotal] = useState(0);
+  // Sync tab state when URL changes
+  useEffect(() => {
+    if (defaultTab) {
+      setActiveTab(defaultTab);
+    } else if (location.pathname === '/grammar') {
+      setActiveTab('grammar');
+    } else if (searchParams.get('tab')) {
+      setActiveTab(searchParams.get('tab'));
+    }
+  }, [defaultTab, location.pathname, searchParams]);
+
+  const handleTabChange = (_, val) => {
+    setActiveTab(val);
+    setSearchTerm('');
+    setPage(1);
+    setGrammarPage(1);
+    setSearchParams({ tab: val });
+  };
+
+  // Pagination & limits
   const [page, setPage] = useState(1);
+  const [grammarPage, setGrammarPage] = useState(1);
   const limit = 18;
 
-  // Filter states for Kho từ vựng
+  // Filter states for Kho từ vựng & Ngữ pháp
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedTopic, setSelectedTopic] = useState('all');
   const [selectedLevel, setSelectedLevel] = useState('all');
   const [selectedPos, setSelectedPos] = useState('all');
-
-  // Set of saved vocab IDs in DB
-  const [bookmarkedIds, setBookmarkedIds] = useState(new Set());
-
-  // --- SỔ TAY TỪ VỰNG STATES ---
-  const [notebookVocabs, setNotebookVocabs] = useState([]);
-  const [notebookLoading, setNotebookLoading] = useState(false);
-  const [notebookTotal, setNotebookTotal] = useState(0);
-  const [notebookPage, setNotebookPage] = useState(1);
-  const [notebookFilter, setNotebookFilter] = useState('all'); // 'all', 'due', 'mastered'
-  const [notebookStats, setNotebookStats] = useState({
-    totalSaved: 0,
-    dueCount: 0,
-    masteredCount: 0,
-    learningCount: 0,
-  });
-
-  // Modal thêm từ thủ công
-  const [openAddModal, setOpenAddModal] = useState(false);
-  const [customWordKr, setCustomWordKr] = useState('');
-  const [customMeaningVi, setCustomMeaningVi] = useState('');
-  const [addLoading, setAddLoading] = useState(false);
 
   // Toast notifications
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
@@ -111,125 +97,91 @@ export const VocabularyHubPage = () => {
     const handler = setTimeout(() => {
       setDebouncedSearch(searchTerm.trim());
       setPage(1);
-      setNotebookPage(1);
+      setGrammarPage(1);
     }, 350);
     return () => clearTimeout(handler);
   }, [searchTerm]);
 
-  // Load saved vocab IDs on mount
-  const loadSavedIds = useCallback(async () => {
-    if (!user) return;
-    try {
+  // --- 1. TANSTACK QUERY: Filter Metadata (Chủ đề, Cấp độ, Từ loại) ---
+  const { data: filterMetadata = {} } = useQuery({
+    queryKey: ['vocabFilterMetadata'],
+    queryFn: async () => {
+      const [tRes, lRes, posRes] = await Promise.allSettled([
+        topicApi.getTopics(),
+        topikApi.getTopikLevels(),
+        vocabApi.getPartsOfSpeech(),
+      ]);
+      return {
+        topics: tRes.status === 'fulfilled' ? (tRes.value?.data || tRes.value || []) : [],
+        topikLevels: lRes.status === 'fulfilled' ? (lRes.value?.data || lRes.value || []) : [],
+        partsOfSpeech: posRes.status === 'fulfilled' ? (posRes.value?.data || posRes.value || []) : [],
+      };
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+  const topics = filterMetadata.topics || [];
+  const topikLevels = filterMetadata.topikLevels || [];
+  const partsOfSpeech = filterMetadata.partsOfSpeech || [];
+
+  // --- 2. TANSTACK QUERY: Danh sách ID các từ đã lưu vào sổ tay ---
+  const { data: savedVocabIds = [] } = useQuery({
+    queryKey: ['savedVocabIds', user?.id],
+    queryFn: async () => {
       const res = await vocabApi.getSavedVocabIds();
       const payload = res?.data || res;
-      if (payload?.ids && Array.isArray(payload.ids)) {
-        setBookmarkedIds(new Set(payload.ids));
-      }
-    } catch (err) {
-      console.warn('Could not load saved vocab IDs:', err);
+      return Array.isArray(payload?.ids) ? payload.ids : [];
+    },
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Local synced Set of saved IDs for instant O(1) bookmark rendering
+  const [bookmarkedIds, setBookmarkedIds] = useState(new Set());
+  useEffect(() => {
+    if (savedVocabIds) {
+      setBookmarkedIds(new Set(savedVocabIds));
     }
-  }, [user]);
+  }, [savedVocabIds]);
 
-  useEffect(() => {
-    loadSavedIds();
-  }, [loadSavedIds]);
-
-  // Load filter metadata
-  useEffect(() => {
-    const loadMetadata = async () => {
-      try {
-        const [tRes, lRes, posRes] = await Promise.allSettled([
-          topicApi.getTopics(),
-          topikApi.getTopikLevels(),
-          vocabApi.getPartsOfSpeech(),
-        ]);
-        if (tRes.status === 'fulfilled') {
-          const tData = tRes.value?.data || tRes.value || [];
-          if (Array.isArray(tData)) setTopics(tData);
-        }
-        if (lRes.status === 'fulfilled') {
-          const lData = lRes.value?.data || lRes.value || [];
-          if (Array.isArray(lData)) setTopikLevels(lData);
-        }
-        if (posRes.status === 'fulfilled') {
-          const pData = posRes.value?.data || posRes.value || [];
-          if (Array.isArray(pData)) setPartsOfSpeech(pData);
-        }
-      } catch (err) {
-        console.warn('Failed to load filter metadata:', err);
-      }
-    };
-    loadMetadata();
-  }, []);
-
-  // Fetch vocabularies for 'bank' tab
-  useEffect(() => {
-    if (activeTab !== 'bank') return;
-
-    const fetchVocabularies = async () => {
-      setLoading(true);
-      try {
-        const params = {
-          page,
-          limit,
-          ...(debouncedSearch && { search: debouncedSearch }),
-          ...(selectedTopic !== 'all' && { topicId: selectedTopic }),
-          ...(selectedLevel !== 'all' && { topikLevel: selectedLevel }),
-          ...(selectedPos !== 'all' && { partOfSpeech: selectedPos }),
-        };
-
-        const res = await vocabApi.getVocabularies(params);
-        const dataPayload = res?.data || res;
-
-        if (dataPayload) {
-          setVocabularies(dataPayload.data || []);
-          setTotal(dataPayload.total || 0);
-        }
-      } catch (err) {
-        console.warn('Failed to load vocabularies:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchVocabularies();
-  }, [activeTab, page, debouncedSearch, selectedTopic, selectedLevel, selectedPos]);
-
-  // Fetch user notebook for 'notebook' tab
-  const fetchNotebook = useCallback(async () => {
-    if (!user) return;
-    setNotebookLoading(true);
-    try {
+  // --- 3. TANSTACK QUERY: Kho Từ Vựng Hệ Thống ---
+  const { data: bankData, isLoading: loading } = useQuery({
+    queryKey: ['vocabBank', page, limit, debouncedSearch, selectedTopic, selectedLevel, selectedPos],
+    queryFn: async () => {
       const params = {
-        page: notebookPage,
+        page,
         limit,
         ...(debouncedSearch && { search: debouncedSearch }),
-        ...(notebookFilter === 'due' && { dueOnly: true }),
-        ...(notebookFilter === 'mastered' && { srsStage: 5 }),
+        ...(selectedTopic !== 'all' && { topicId: selectedTopic }),
+        ...(selectedLevel !== 'all' && { topikLevel: selectedLevel }),
+        ...(selectedPos !== 'all' && { partOfSpeech: selectedPos }),
       };
+      const res = await vocabApi.getVocabularies(params);
+      return res?.data || res || { data: [], total: 0 };
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  const vocabularies = bankData?.data || [];
+  const total = bankData?.total || 0;
 
-      const res = await vocabApi.getUserVocabs(params);
-      const payload = res?.data || res;
+  // --- 4. TANSTACK QUERY: Kho Ngữ Pháp Hệ Thống ---
+  const { data: grammarData, isLoading: grammarLoading } = useQuery({
+    queryKey: ['grammarBank', grammarPage, debouncedSearch, selectedTopic, selectedLevel],
+    queryFn: async () => {
+      const params = {
+        page: grammarPage,
+        limit: 12,
+        ...(debouncedSearch && { search: debouncedSearch }),
+        ...(selectedTopic !== 'all' && { topicId: selectedTopic }),
+        ...(selectedLevel !== 'all' && { topikLevel: selectedLevel }),
+      };
+      const res = await grammarApi.getGrammarPoints(params);
+      return res?.data || res || { data: [], total: 0 };
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  const grammarPoints = grammarData?.data || [];
+  const grammarTotal = grammarData?.total || 0;
 
-      if (payload) {
-        setNotebookVocabs(payload.data || []);
-        setNotebookTotal(payload.total || 0);
-        if (payload.stats) {
-          setNotebookStats(payload.stats);
-        }
-      }
-    } catch (err) {
-      console.warn('Failed to load notebook:', err);
-    } finally {
-      setNotebookLoading(false);
-    }
-  }, [user, notebookPage, debouncedSearch, notebookFilter]);
-
-  useEffect(() => {
-    if (activeTab === 'notebook') {
-      fetchNotebook();
-    }
-  }, [activeTab, fetchNotebook]);
 
   // Toggle bookmark in Kho Từ Vựng
   const handleToggleBookmark = async (vocab) => {
@@ -275,6 +227,8 @@ export const VocabularyHubPage = () => {
           severity: 'info',
         });
       }
+      queryClient.invalidateQueries({ queryKey: ['savedVocabIds', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['userNotebook', user?.id] });
     } catch (err) {
       console.error('Error toggling bookmark:', err);
       // Revert optimistic update
@@ -292,114 +246,8 @@ export const VocabularyHubPage = () => {
     }
   };
 
-  // Delete word from Sổ tay
-  const handleDeleteNotebookItem = async (item) => {
-    try {
-      await vocabApi.deleteUserVocab(item.id);
-      setNotebookVocabs((prev) => prev.filter((v) => v.id !== item.id));
-      if (item.vocabularyId) {
-        setBookmarkedIds((prev) => {
-          const next = new Set(prev);
-          next.delete(item.vocabularyId);
-          return next;
-        });
-      }
-      setNotebookStats((prev) => ({
-        ...prev,
-        totalSaved: Math.max(0, prev.totalSaved - 1),
-      }));
-      setToast({
-        open: true,
-        message: `Đã xóa "${item.wordKr}" khỏi sổ tay`,
-        severity: 'info',
-      });
-    } catch (err) {
-      console.error('Error deleting vocab:', err);
-      setToast({
-        open: true,
-        message: 'Không thể xóa từ này. Vui lòng thử lại!',
-        severity: 'error',
-      });
-    }
-  };
-
-  // Review word SRS (Again / Hard / Good / Easy)
-  const handleReviewWord = async (item, rating) => {
-    try {
-      const res = await vocabApi.reviewUserVocab(item.id, rating);
-      const payload = res?.data || res;
-      const newStage = payload?.srsStage ?? item.srsStage;
-
-      setNotebookVocabs((prev) =>
-        prev.map((v) => (v.id === item.id ? { ...v, srsStage: newStage, nextReviewAt: payload?.nextReviewAt } : v))
-      );
-
-      const ratingTexts = {
-        again: 'Quên (Ôn lại sau 10 phút)',
-        hard: 'Khó (Ôn lại sau 12h)',
-        good: 'Đã nhớ (+10 EXP)',
-        easy: 'Rất dễ (+10 EXP)',
-      };
-
-      setToast({
-        open: true,
-        message: `Đã đánh giá "${item.wordKr}": ${ratingTexts[rating]} ✨`,
-        severity: 'success',
-      });
-    } catch (err) {
-      console.error('Error reviewing vocab:', err);
-    }
-  };
-
-  // Handle Add Custom Vocab
-  const handleAddCustom = async () => {
-    if (!customWordKr.trim() || !customMeaningVi.trim()) {
-      setToast({
-        open: true,
-        message: 'Vui lòng nhập đầy đủ từ tiếng Hàn và nghĩa tiếng Việt!',
-        severity: 'warning',
-      });
-      return;
-    }
-
-    setAddLoading(true);
-    try {
-      const res = await vocabApi.addCustomVocab({
-        wordKr: customWordKr.trim(),
-        meaningVi: customMeaningVi.trim(),
-      });
-
-      const newWord = res?.data || res;
-      setNotebookVocabs((prev) => [newWord, ...prev]);
-      setNotebookStats((prev) => ({
-        ...prev,
-        totalSaved: prev.totalSaved + 1,
-        learningCount: prev.learningCount + 1,
-      }));
-
-      setCustomWordKr('');
-      setCustomMeaningVi('');
-      setOpenAddModal(false);
-
-      setToast({
-        open: true,
-        message: `Đã thêm từ "${newWord.wordKr}" vào Sổ tay (+5 EXP)! 🎉`,
-        severity: 'success',
-      });
-    } catch (err) {
-      console.error('Error adding custom vocab:', err);
-      setToast({
-        open: true,
-        message: 'Không thể thêm từ. Vui lòng kiểm tra lại!',
-        severity: 'error',
-      });
-    } finally {
-      setAddLoading(false);
-    }
-  };
-
   const totalPages = Math.ceil(total / limit) || 1;
-  const notebookTotalPages = Math.ceil(notebookTotal / limit) || 1;
+  const grammarTotalPages = Math.ceil(grammarTotal / 12) || 1;
 
   // Memoized Autocomplete options
   const topicOptions = useMemo(
@@ -472,83 +320,195 @@ export const VocabularyHubPage = () => {
               <MenuBookIcon sx={{ fontSize: 28, color: '#fff' }} />
             </Box>
             <Typography variant="h4" sx={{ fontWeight: 900, color: '#fff' }}>
-              Kho & Sổ Tay Từ Vựng
+              Kho Từ Vựng & Ngữ Pháp
             </Typography>
           </Box>
           <Typography variant="body1" sx={{ opacity: 0.9, maxWidth: 650 }}>
-            Tra cứu từ vựng TOPIK I - II, lưu vào sổ tay cá nhân và rèn luyện trí nhớ vĩnh viễn với phương pháp ngắt quãng Spaced Repetition (SRS).
+            Tra cứu từ vựng và cấu trúc ngữ pháp TOPIK chuẩn mực, lưu vào sổ tay cá nhân và rèn luyện trí nhớ ngắt quãng Spaced Repetition (SRS).
           </Typography>
         </Box>
 
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+        <Button
+          variant="contained"
+          startIcon={<BookmarkIcon />}
+          onClick={() => navigate('/notebook')}
+          sx={{
+            bgcolor: '#fff',
+            color: '#973F69',
+            fontWeight: 800,
+            borderRadius: '14px',
+            px: 3,
+            py: 1.2,
+            boxShadow: '0 4px 14px rgba(0,0,0,0.15)',
+            textTransform: 'none',
+            fontSize: '0.92rem',
+            whiteSpace: 'nowrap',
+            '&:hover': { bgcolor: '#FFF5F7' },
+          }}
+        >
+          Sổ tay của tôi ({bookmarkedIds.size}) ↗
+        </Button>
+      </Box>
+
+      {/* Quick Stats Cards */}
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' },
+          gap: 2,
+          width: '100%',
+        }}
+      >
+        <Paper
+          elevation={0}
+          sx={{
+            p: 2.5,
+            borderRadius: '20px',
+            border: '1px solid',
+            borderColor: 'divider',
+            bgcolor: 'background.paper',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+          }}
+        >
           <Box
             sx={{
-              bgcolor: 'rgba(255, 255, 255, 0.15)',
-              backdropFilter: 'blur(8px)',
-              px: 2.5,
-              py: 1.5,
-              borderRadius: '16px',
-              border: '1px solid rgba(255, 255, 255, 0.25)',
-              textAlign: 'center',
+              width: 48,
+              height: 48,
+              borderRadius: '14px',
+              bgcolor: '#FDF2F4',
+              color: '#9D446E',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
           >
-            <Typography variant="caption" sx={{ opacity: 0.85, display: 'block', fontWeight: 600 }}>
-              Tổng từ hệ thống
+            <MenuBookIcon />
+          </Box>
+          <Box>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+              Kho từ vựng TOPIK
             </Typography>
-            <Typography variant="h5" sx={{ fontWeight: 900, color: '#fff' }}>
+            <Typography variant="h5" sx={{ fontWeight: 900, color: 'text.primary' }}>
               {total || 538} từ
             </Typography>
           </Box>
+        </Paper>
 
+        <Paper
+          elevation={0}
+          sx={{
+            p: 2.5,
+            borderRadius: '20px',
+            border: '1px solid',
+            borderColor: 'divider',
+            bgcolor: 'background.paper',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+          }}
+        >
           <Box
             sx={{
-              bgcolor: 'rgba(255, 255, 255, 0.15)',
-              backdropFilter: 'blur(8px)',
-              px: 2.5,
-              py: 1.5,
-              borderRadius: '16px',
-              border: '1px solid rgba(255, 255, 255, 0.25)',
-              textAlign: 'center',
+              width: 48,
+              height: 48,
+              borderRadius: '14px',
+              bgcolor: 'rgba(157, 68, 110, 0.1)',
+              color: '#9D446E',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
           >
-            <Typography variant="caption" sx={{ opacity: 0.85, display: 'block', fontWeight: 600 }}>
-              Sổ tay của bạn
+            <EditNoteIcon />
+          </Box>
+          <Box>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+              Kho ngữ pháp TOPIK
             </Typography>
-            <Typography variant="h5" sx={{ fontWeight: 900, color: '#FFDFE7' }}>
-              {notebookStats.totalSaved || bookmarkedIds.size} từ
+            <Typography variant="h5" sx={{ fontWeight: 900, color: 'text.primary' }}>
+              {grammarTotal || 31} cấu trúc
             </Typography>
           </Box>
-        </Box>
+        </Paper>
+
+        <Paper
+          elevation={0}
+          onClick={() => navigate('/notebook')}
+          sx={{
+            p: 2.5,
+            borderRadius: '20px',
+            border: '1px solid',
+            borderColor: 'divider',
+            bgcolor: 'background.paper',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            '&:hover': {
+              borderColor: '#9D446E',
+              boxShadow: '0 6px 20px rgba(157, 68, 110, 0.1)',
+              transform: 'translateY(-2px)',
+            },
+          }}
+        >
+          <Box
+            sx={{
+              width: 48,
+              height: 48,
+              borderRadius: '14px',
+              bgcolor: '#FDF2F4',
+              color: '#9D446E',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <BookmarkIcon />
+          </Box>
+          <Box>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+              Sổ tay của bạn ↗
+            </Typography>
+            <Typography variant="h5" sx={{ fontWeight: 900, color: '#9D446E' }}>
+              {bookmarkedIds.size} từ đã lưu
+            </Typography>
+          </Box>
+        </Paper>
       </Box>
 
       {/* Main Tab Navigation */}
       <Paper
         elevation={0}
         sx={{
-          borderRadius: '16px',
+          borderRadius: '20px',
           border: '1px solid',
           borderColor: 'divider',
           bgcolor: 'background.paper',
-          p: 0.8,
+          p: { xs: 0.8, sm: 1 },
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 1.5,
         }}
       >
         <Tabs
           value={activeTab}
-          onChange={(_, val) => {
-            setActiveTab(val);
-            setSearchTerm('');
-            setPage(1);
-            setNotebookPage(1);
-          }}
+          onChange={handleTabChange}
           indicatorColor="primary"
           textColor="primary"
+          variant="scrollable"
+          scrollButtons="auto"
           sx={{
             minHeight: 48,
             '& .MuiTab-root': {
               textTransform: 'none',
               fontWeight: 700,
               fontSize: '0.95rem',
-              borderRadius: '12px',
+              borderRadius: '14px',
               minHeight: 44,
               px: 3,
               transition: 'all 0.2s ease',
@@ -563,13 +523,13 @@ export const VocabularyHubPage = () => {
             value="bank"
             icon={<MenuBookIcon sx={{ fontSize: 20 }} />}
             iconPosition="start"
-            label={`Kho từ vựng (${total || 538})`}
+            label={`Kho Từ Vựng (${total || 538})`}
           />
           <Tab
-            value="notebook"
-            icon={<BookmarkIcon sx={{ fontSize: 20 }} />}
+            value="grammar"
+            icon={<EditNoteIcon sx={{ fontSize: 20 }} />}
             iconPosition="start"
-            label={`Sổ tay của tôi (${notebookStats.totalSaved || bookmarkedIds.size})`}
+            label={`Kho Ngữ Pháp (${grammarTotal || 31})`}
           />
         </Tabs>
       </Paper>
@@ -581,7 +541,7 @@ export const VocabularyHubPage = () => {
           <Paper
             elevation={0}
             sx={{
-              p: 2.5,
+              p: 2,
               borderRadius: '20px',
               border: '1px solid',
               borderColor: 'divider',
@@ -589,107 +549,96 @@ export const VocabularyHubPage = () => {
               boxShadow: '0 4px 20px rgba(0,0,0,0.03)',
             }}
           >
-            <Grid container spacing={2} alignItems="center">
-              {/* Search Box */}
-              <Grid item xs={12} md={4}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  placeholder="Tra từ tiếng Hàn hoặc nghĩa tiếng Việt..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SearchIcon sx={{ color: '#9D446E' }} />
-                      </InputAdornment>
-                    ),
-                    sx: { borderRadius: '12px', bgcolor: 'background.default' },
-                  }}
-                />
-              </Grid>
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                flexWrap: { xs: 'wrap', md: 'nowrap' },
+                gap: 1.5,
+              }}
+            >
+              <TextField
+                size="small"
+                placeholder="Tra từ tiếng Hàn hoặc nghĩa tiếng Việt..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon sx={{ color: '#9D446E' }} />
+                    </InputAdornment>
+                  ),
+                  sx: { borderRadius: '12px', bgcolor: 'background.default' },
+                }}
+                sx={{ flex: { xs: '1 1 100%', md: 4 } }}
+              />
 
-              {/* Topic Autocomplete */}
-              <Grid item xs={12} sm={4} md={2.8}>
-                <Autocomplete
-                  size="small"
-                  options={topicOptions}
-                  value={currentTopicValue}
-                  onChange={(_, newValue) => {
-                    setSelectedTopic(newValue ? newValue.id : 'all');
-                    setPage(1);
-                  }}
-                  getOptionLabel={(option) => option.label || ''}
-                  isOptionEqualToValue={(option, val) => option.id === val?.id}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label="Chủ đề"
-                      placeholder="Tìm chủ đề..."
-                      sx={{
-                        bgcolor: 'background.default',
-                        '& .MuiOutlinedInput-root': { borderRadius: '12px' },
-                      }}
-                    />
-                  )}
-                  disableClearable
-                />
-              </Grid>
+              <Autocomplete
+                size="small"
+                options={topicOptions}
+                value={currentTopicValue}
+                onChange={(_, newValue) => {
+                  setSelectedTopic(newValue ? newValue.id : 'all');
+                  setPage(1);
+                }}
+                getOptionLabel={(option) => option.label || ''}
+                isOptionEqualToValue={(option, val) => option.id === val?.id}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Chủ đề"
+                    placeholder="Tìm chủ đề..."
+                    sx={{ bgcolor: 'background.default', '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
+                  />
+                )}
+                disableClearable
+                sx={{ flex: { xs: '1 1 100%', sm: '1 1 180px', md: 3 } }}
+              />
 
-              {/* TOPIK Level Autocomplete */}
-              <Grid item xs={6} sm={4} md={2.6}>
-                <Autocomplete
-                  size="small"
-                  options={levelOptions}
-                  value={currentLevelValue}
-                  onChange={(_, newValue) => {
-                    setSelectedLevel(newValue ? newValue.id : 'all');
-                    setPage(1);
-                  }}
-                  getOptionLabel={(option) => option.label || ''}
-                  isOptionEqualToValue={(option, val) => String(option.id) === String(val?.id)}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label="Cấp độ TOPIK"
-                      placeholder="Chọn cấp độ..."
-                      sx={{
-                        bgcolor: 'background.default',
-                        '& .MuiOutlinedInput-root': { borderRadius: '12px' },
-                      }}
-                    />
-                  )}
-                  disableClearable
-                />
-              </Grid>
+              <Autocomplete
+                size="small"
+                options={levelOptions}
+                value={currentLevelValue}
+                onChange={(_, newValue) => {
+                  setSelectedLevel(newValue ? newValue.id : 'all');
+                  setPage(1);
+                }}
+                getOptionLabel={(option) => option.label || ''}
+                isOptionEqualToValue={(option, val) => String(option.id) === String(val?.id)}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Cấp độ TOPIK"
+                    placeholder="Chọn cấp độ..."
+                    sx={{ bgcolor: 'background.default', '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
+                  />
+                )}
+                disableClearable
+                sx={{ flex: { xs: '1 1 calc(50% - 6px)', sm: '1 1 140px', md: 2.5 } }}
+              />
 
-              {/* Part of Speech Autocomplete */}
-              <Grid item xs={6} sm={4} md={2.6}>
-                <Autocomplete
-                  size="small"
-                  options={posOptions}
-                  value={currentPosValue}
-                  onChange={(_, newValue) => {
-                    setSelectedPos(newValue ? newValue.id : 'all');
-                    setPage(1);
-                  }}
-                  getOptionLabel={(option) => option.label || ''}
-                  isOptionEqualToValue={(option, val) => option.id === val?.id}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label="Từ loại"
-                      placeholder="Chọn từ loại..."
-                      sx={{
-                        bgcolor: 'background.default',
-                        '& .MuiOutlinedInput-root': { borderRadius: '12px' },
-                      }}
-                    />
-                  )}
-                  disableClearable
-                />
-              </Grid>
-            </Grid>
+              <Autocomplete
+                size="small"
+                options={posOptions}
+                value={currentPosValue}
+                onChange={(_, newValue) => {
+                  setSelectedPos(newValue ? newValue.id : 'all');
+                  setPage(1);
+                }}
+                getOptionLabel={(option) => option.label || ''}
+                isOptionEqualToValue={(option, val) => option.id === val?.id}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Từ loại"
+                    placeholder="Chọn từ loại..."
+                    sx={{ bgcolor: 'background.default', '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
+                  />
+                )}
+                disableClearable
+                sx={{ flex: { xs: '1 1 calc(50% - 6px)', sm: '1 1 140px', md: 2.5 } }}
+              />
+            </Box>
           </Paper>
 
           {/* Vocabulary Cards Grid */}
@@ -700,14 +649,7 @@ export const VocabularyHubPage = () => {
           ) : vocabularies.length === 0 ? (
             <Paper
               elevation={0}
-              sx={{
-                p: 6,
-                textAlign: 'center',
-                borderRadius: '20px',
-                border: '1px dashed',
-                borderColor: 'divider',
-                bgcolor: 'background.paper',
-              }}
+              sx={{ p: 6, textAlign: 'center', borderRadius: '20px', border: '1px dashed', borderColor: 'divider', bgcolor: 'background.paper' }}
             >
               <Typography variant="h6" sx={{ fontWeight: 800, mb: 1, color: '#9D446E' }}>
                 Không tìm thấy từ vựng phù hợp
@@ -724,206 +666,168 @@ export const VocabularyHubPage = () => {
                   setSelectedPos('all');
                   setPage(1);
                 }}
-                sx={{
-                  borderColor: '#9D446E',
-                  color: '#9D446E',
-                  borderRadius: '12px',
-                  fontWeight: 700,
-                  textTransform: 'none',
-                  '&:hover': { borderColor: '#86365c', bgcolor: '#FDF2F4' },
-                }}
+                sx={{ borderColor: '#9D446E', color: '#9D446E', borderRadius: '12px', fontWeight: 700, textTransform: 'none' }}
               >
                 Đặt lại bộ lọc
               </Button>
             </Paper>
           ) : (
             <>
-              <Grid container spacing={2.5}>
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
+                  gap: 2.5,
+                  width: '100%',
+                }}
+              >
                 {vocabularies.map((vocab) => {
                   const isSaved = bookmarkedIds.has(vocab.id);
                   const example = vocab.examples?.[0];
 
                   return (
-                    <Grid item xs={12} sm={6} md={4} key={vocab.id}>
-                      <Paper
-                        elevation={0}
-                        sx={{
-                          p: 2.5,
-                          height: '100%',
-                          borderRadius: '20px',
-                          border: '1px solid',
-                          borderColor: isSaved ? '#F8D7DA' : 'divider',
-                          bgcolor: 'background.paper',
-                          boxShadow: isSaved ? '0 4px 16px rgba(157,68,110,0.08)' : '0 4px 14px rgba(0,0,0,0.03)',
-                          transition: 'all 0.25s ease',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          justifyContent: 'space-between',
-                          '&:hover': {
-                            transform: 'translateY(-3px)',
-                            boxShadow: '0 8px 24px rgba(157, 68, 110, 0.12)',
-                            borderColor: '#F8D7DA',
-                          },
-                        }}
-                      >
-                        <Box>
-                          {/* Badges & Actions */}
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-                            <Stack direction="row" spacing={1} alignItems="center">
-                              {vocab.topikLevel && (
-                                <Chip
-                                  label={`TOPIK ${vocab.topikLevel}`}
-                                  size="small"
-                                  sx={{
-                                    height: 22,
-                                    fontWeight: 800,
-                                    fontSize: '0.7rem',
-                                    bgcolor: '#FDF2F4',
-                                    color: '#9D446E',
-                                    border: '1px solid #F8D7DA',
-                                  }}
-                                />
-                              )}
-                              {vocab.partOfSpeech && (
-                                <Chip
-                                  label={vocab.partOfSpeech}
-                                  size="small"
-                                  sx={{
-                                    height: 22,
-                                    fontWeight: 700,
-                                    fontSize: '0.68rem',
-                                    bgcolor: (theme) => (theme.palette.mode === 'light' ? '#F1F5F9' : 'rgba(255,255,255,0.08)'),
-                                    color: 'text.secondary',
-                                  }}
-                                />
-                              )}
-                            </Stack>
-
-                            <Stack direction="row" spacing={0.5}>
-                              <Tooltip title="Phát âm chuẩn tiếng Hàn">
-                                <IconButton
-                                  size="small"
-                                  onClick={() => speakKorean(vocab.wordKorean)}
-                                  sx={{
-                                    color: '#9D446E',
-                                    bgcolor: '#FDF2F4',
-                                    '&:hover': { bgcolor: '#FCE7EB' },
-                                  }}
-                                >
-                                  <VolumeUpIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-
-                              <Tooltip title={isSaved ? 'Đã lưu vào Sổ tay' : 'Lưu vào Sổ tay'}>
-                                <IconButton
-                                  size="small"
-                                  onClick={() => handleToggleBookmark(vocab)}
-                                  sx={{
-                                    color: isSaved ? '#9D446E' : 'text.disabled',
-                                    bgcolor: isSaved ? '#FDF2F4' : 'transparent',
-                                    '&:hover': { color: '#9D446E', bgcolor: '#FDF2F4' },
-                                  }}
-                                >
-                                  {isSaved ? <BookmarkIcon fontSize="small" /> : <BookmarkBorderIcon fontSize="small" />}
-                                </IconButton>
-                              </Tooltip>
-                            </Stack>
-                          </Box>
-
-                          {/* Korean Word & Pronunciation */}
-                          <Typography
-                            variant="h5"
-                            sx={{
-                              fontWeight: 900,
-                              color: 'text.primary',
-                              fontFamily: 'Pretendard, sans-serif',
-                              letterSpacing: '-0.5px',
-                            }}
-                          >
-                            {vocab.wordKorean}
-                          </Typography>
-
-                          {vocab.pronunciation && (
-                            <Typography
-                              variant="caption"
-                              sx={{
-                                color: '#9D446E',
-                                fontWeight: 700,
-                                fontStyle: 'italic',
-                                display: 'block',
-                                mb: 1,
-                              }}
-                            >
-                              [{vocab.pronunciation}]
-                            </Typography>
-                          )}
-
-                          {/* Vietnamese Meaning */}
-                          <Typography
-                            variant="body1"
-                            sx={{
-                              fontWeight: 700,
-                              color: 'text.primary',
-                              fontSize: '0.98rem',
-                              lineHeight: 1.4,
-                              mb: 1.5,
-                            }}
-                          >
-                            {vocab.meaningVi}
-                          </Typography>
-
-                          {/* Example sentence if available */}
-                          {example && (
-                            <Box
-                              sx={{
-                                p: 1.5,
-                                borderRadius: '12px',
-                                bgcolor: 'background.default',
-                                border: '1px solid',
-                                borderColor: 'divider',
-                                mb: 1.5,
-                              }}
-                            >
-                              <Typography
-                                variant="caption"
+                    <Paper
+                      key={vocab.id}
+                      elevation={0}
+                      sx={{
+                        p: 2.5,
+                        height: '100%',
+                        borderRadius: '20px',
+                        border: '1px solid',
+                        borderColor: isSaved ? '#F8D7DA' : 'divider',
+                        bgcolor: 'background.paper',
+                        boxShadow: isSaved ? '0 4px 16px rgba(157,68,110,0.08)' : '0 4px 14px rgba(0,0,0,0.03)',
+                        transition: 'all 0.25s ease',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        '&:hover': {
+                          transform: 'translateY(-3px)',
+                          boxShadow: '0 8px 24px rgba(157, 68, 110, 0.12)',
+                          borderColor: '#F8D7DA',
+                        },
+                      }}
+                    >
+                      <Box>
+                        {/* Badges & Actions */}
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            {vocab.topikLevel && (
+                              <Chip
+                                label={`TOPIK ${vocab.topikLevel}`}
+                                size="small"
                                 sx={{
-                                  color: 'text.primary',
+                                  height: 22,
+                                  fontWeight: 800,
+                                  fontSize: '0.7rem',
+                                  bgcolor: '#FDF2F4',
+                                  color: '#9D446E',
+                                  border: '1px solid #F8D7DA',
+                                }}
+                              />
+                            )}
+                            {vocab.partOfSpeech && (
+                              <Chip
+                                label={vocab.partOfSpeech}
+                                size="small"
+                                sx={{
+                                  height: 22,
                                   fontWeight: 700,
-                                  display: 'block',
-                                  fontFamily: 'Pretendard',
-                                }}
-                              >
-                                • {example.sentenceKorean}
-                              </Typography>
-                              <Typography
-                                variant="caption"
-                                sx={{
+                                  fontSize: '0.68rem',
+                                  bgcolor: (theme) => (theme.palette.mode === 'light' ? '#F1F5F9' : 'rgba(255,255,255,0.08)'),
                                   color: 'text.secondary',
-                                  display: 'block',
-                                  mt: 0.3,
+                                }}
+                              />
+                            )}
+                          </Stack>
+
+                          <Stack direction="row" spacing={0.5}>
+                            <Tooltip title="Phát âm tiếng Hàn">
+                              <IconButton
+                                size="small"
+                                onClick={() => speakKorean(vocab.wordKorean)}
+                                sx={{ color: '#9D446E', bgcolor: '#FDF2F4', '&:hover': { bgcolor: '#FCE7EB' } }}
+                              >
+                                <VolumeUpIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+
+                            <Tooltip title={isSaved ? 'Đã lưu vào Sổ tay' : 'Lưu vào Sổ tay'}>
+                              <IconButton
+                                size="small"
+                                onClick={() => handleToggleBookmark(vocab)}
+                                sx={{
+                                  color: isSaved ? '#9D446E' : 'text.secondary',
+                                  bgcolor: isSaved ? '#FDF2F4' : 'transparent',
+                                  '&:hover': { color: '#9D446E', bgcolor: '#FDF2F4' },
                                 }}
                               >
-                                {example.sentenceVi}
-                              </Typography>
-                            </Box>
-                          )}
+                                {isSaved ? <BookmarkIcon fontSize="small" /> : <BookmarkBorderIcon fontSize="small" />}
+                              </IconButton>
+                            </Tooltip>
+                          </Stack>
                         </Box>
 
-                        {/* Topic Badge at footer */}
-                        {vocab.topic?.name && (
-                          <Box sx={{ pt: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
-                            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.72rem' }}>
-                              Chủ đề: <span style={{ color: '#9D446E', fontWeight: 700 }}>{vocab.topic.name}</span>
+                        {/* Word in Korean */}
+                        <Typography
+                          variant="h4"
+                          sx={{
+                            fontWeight: 900,
+                            color: 'text.primary',
+                            fontFamily: 'Pretendard, sans-serif',
+                            letterSpacing: '-0.5px',
+                            mb: 0.5,
+                          }}
+                        >
+                          {vocab.wordKorean}
+                        </Typography>
+
+                        {/* Hanja / Sino-Korean */}
+                        {vocab.hanja && (
+                          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, display: 'block', mb: 1 }}>
+                            Hán tự: {vocab.hanja}
+                          </Typography>
+                        )}
+
+                        {/* Meaning in Vietnamese */}
+                        <Typography
+                          variant="body1"
+                          sx={{
+                            fontWeight: 700,
+                            color: 'text.primary',
+                            fontSize: '1.02rem',
+                            lineHeight: 1.4,
+                            mb: 2,
+                          }}
+                        >
+                          {vocab.meaningVi}
+                        </Typography>
+
+                        {/* Example sentence */}
+                        {example && (
+                          <Box sx={{ p: 1.5, borderRadius: '12px', bgcolor: 'background.default', border: '1px solid', borderColor: 'divider', mb: 1.5 }}>
+                            <Typography variant="caption" sx={{ color: 'text.primary', fontWeight: 700, display: 'block', fontFamily: 'Pretendard' }}>
+                              • {example.sentenceKorean}
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.3 }}>
+                              {example.sentenceVi}
                             </Typography>
                           </Box>
                         )}
-                      </Paper>
-                    </Grid>
+                      </Box>
+
+                      {vocab.topic?.name && (
+                        <Box sx={{ pt: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
+                          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.72rem' }}>
+                            Chủ đề: <span style={{ color: '#9D446E', fontWeight: 700 }}>{vocab.topic.name}</span>
+                          </Typography>
+                        </Box>
+                      )}
+                    </Paper>
                   );
                 })}
-              </Grid>
+              </Box>
 
-              {/* Pagination */}
               {totalPages > 1 && (
                 <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
                   <Pagination
@@ -935,13 +839,7 @@ export const VocabularyHubPage = () => {
                     }}
                     color="primary"
                     shape="rounded"
-                    sx={{
-                      '& .Mui-selected': {
-                        bgcolor: '#9D446E !important',
-                        color: '#fff',
-                        fontWeight: 700,
-                      },
-                    }}
+                    sx={{ '& .Mui-selected': { bgcolor: '#9D446E !important', color: '#fff', fontWeight: 700 } }}
                   />
                 </Box>
               )}
@@ -950,130 +848,10 @@ export const VocabularyHubPage = () => {
         </>
       )}
 
-      {/* ================= VIEW 2: SỔ TAY TỪ VỰNG CÁ NHÂN ================= */}
-      {activeTab === 'notebook' && (
-        <Stack spacing={3}>
-          {/* Quick Stats & Action bar */}
-          <Grid container spacing={2}>
-            <Grid item xs={12} sm={4}>
-              <Paper
-                elevation={0}
-                sx={{
-                  p: 2.5,
-                  borderRadius: '20px',
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  bgcolor: 'background.paper',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 2,
-                }}
-              >
-                <Box
-                  sx={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: '14px',
-                    bgcolor: '#FDF2F4',
-                    color: '#9D446E',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <BookmarkIcon />
-                </Box>
-                <Box>
-                  <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
-                    Tổng số từ đã lưu
-                  </Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 900, color: 'text.primary' }}>
-                    {notebookStats.totalSaved} từ
-                  </Typography>
-                </Box>
-              </Paper>
-            </Grid>
-
-            <Grid item xs={6} sm={4}>
-              <Paper
-                elevation={0}
-                sx={{
-                  p: 2.5,
-                  borderRadius: '20px',
-                  border: '1px solid',
-                  borderColor: notebookStats.dueCount > 0 ? '#ffb74d' : 'divider',
-                  bgcolor: notebookStats.dueCount > 0 ? 'rgba(255, 183, 77, 0.08)' : 'background.paper',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 2,
-                }}
-              >
-                <Box
-                  sx={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: '14px',
-                    bgcolor: 'rgba(237, 108, 2, 0.12)',
-                    color: '#ed6c02',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <AlarmIcon />
-                </Box>
-                <Box>
-                  <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
-                    Cần ôn tập hôm nay
-                  </Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 900, color: '#ed6c02' }}>
-                    {notebookStats.dueCount} từ
-                  </Typography>
-                </Box>
-              </Paper>
-            </Grid>
-
-            <Grid item xs={6} sm={4}>
-              <Paper
-                elevation={0}
-                sx={{
-                  p: 2.5,
-                  borderRadius: '20px',
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  bgcolor: 'background.paper',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 2,
-                }}
-              >
-                <Box
-                  sx={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: '14px',
-                    bgcolor: 'rgba(46, 125, 50, 0.12)',
-                    color: '#2e7d32',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <EmojiEventsIcon />
-                </Box>
-                <Box>
-                  <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
-                    Đã thành thạo (SRS 5+)
-                  </Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 900, color: '#2e7d32' }}>
-                    {notebookStats.masteredCount} từ
-                  </Typography>
-                </Box>
-              </Paper>
-            </Grid>
-          </Grid>
-
-          {/* Notebook Filter Toolbar & Add Button */}
+      {/* ================= VIEW 2: KHO NGỮ PHÁP ================= */}
+      {activeTab === 'grammar' && (
+        <>
+          {/* Grammar Filter Toolbar */}
           <Paper
             elevation={0}
             sx={{
@@ -1082,443 +860,288 @@ export const VocabularyHubPage = () => {
               border: '1px solid',
               borderColor: 'divider',
               bgcolor: 'background.paper',
-              display: 'flex',
-              flexDirection: { xs: 'column', sm: 'row' },
-              justifyContent: 'space-between',
-              alignItems: { xs: 'stretch', sm: 'center' },
-              gap: 2,
+              boxShadow: '0 4px 20px rgba(0,0,0,0.03)',
             }}
           >
-            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
-              <Chip
-                label={`Tất cả (${notebookStats.totalSaved})`}
-                clickable
-                onClick={() => {
-                  setNotebookFilter('all');
-                  setNotebookPage(1);
-                }}
-                sx={{
-                  fontWeight: 700,
-                  bgcolor: notebookFilter === 'all' ? '#9D446E' : 'background.default',
-                  color: notebookFilter === 'all' ? '#fff' : 'text.primary',
-                  '&:hover': { bgcolor: notebookFilter === 'all' ? '#86365c' : 'action.hover' },
-                }}
-              />
-              <Chip
-                icon={<AlarmIcon sx={{ fontSize: 16 }} />}
-                label={`Cần ôn tập (${notebookStats.dueCount})`}
-                clickable
-                onClick={() => {
-                  setNotebookFilter('due');
-                  setNotebookPage(1);
-                }}
-                sx={{
-                  fontWeight: 700,
-                  bgcolor: notebookFilter === 'due' ? '#ed6c02' : 'background.default',
-                  color: notebookFilter === 'due' ? '#fff' : 'text.primary',
-                  '&:hover': { bgcolor: notebookFilter === 'due' ? '#c75900' : 'action.hover' },
-                }}
-              />
-              <Chip
-                icon={<EmojiEventsIcon sx={{ fontSize: 16 }} />}
-                label={`Đã thành thạo (${notebookStats.masteredCount})`}
-                clickable
-                onClick={() => {
-                  setNotebookFilter('mastered');
-                  setNotebookPage(1);
-                }}
-                sx={{
-                  fontWeight: 700,
-                  bgcolor: notebookFilter === 'mastered' ? '#2e7d32' : 'background.default',
-                  color: notebookFilter === 'mastered' ? '#fff' : 'text.primary',
-                  '&:hover': { bgcolor: notebookFilter === 'mastered' ? '#236027' : 'action.hover' },
-                }}
-              />
-            </Stack>
-
-            <Stack direction="row" spacing={1.5} alignItems="center">
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                flexWrap: { xs: 'wrap', md: 'nowrap' },
+                gap: 1.5,
+              }}
+            >
               <TextField
                 size="small"
-                placeholder="Tìm trong sổ tay..."
+                placeholder="Tìm kiếm mẫu ngữ pháp, cấu trúc hoặc ý nghĩa..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <SearchIcon fontSize="small" sx={{ color: '#9D446E' }} />
+                      <SearchIcon sx={{ color: '#9D446E' }} />
                     </InputAdornment>
                   ),
-                  sx: { borderRadius: '12px', bgcolor: 'background.default', width: { xs: '100%', sm: 220 } },
+                  sx: { borderRadius: '12px', bgcolor: 'background.default' },
                 }}
+                sx={{ flex: { xs: '1 1 100%', md: 5 } }}
               />
 
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={() => setOpenAddModal(true)}
-                sx={{
-                  bgcolor: '#9D446E',
-                  borderRadius: '12px',
-                  fontWeight: 700,
-                  textTransform: 'none',
-                  px: 2.5,
-                  whiteSpace: 'nowrap',
-                  '&:hover': { bgcolor: '#86365c' },
+              <Autocomplete
+                size="small"
+                options={topicOptions}
+                value={currentTopicValue}
+                onChange={(_, newValue) => {
+                  setSelectedTopic(newValue ? newValue.id : 'all');
+                  setGrammarPage(1);
                 }}
-              >
-                Thêm từ mới
-              </Button>
-            </Stack>
+                getOptionLabel={(option) => option.label || ''}
+                isOptionEqualToValue={(option, val) => option.id === val?.id}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Chủ đề ngữ pháp"
+                    placeholder="Tìm chủ đề..."
+                    sx={{ bgcolor: 'background.default', '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
+                  />
+                )}
+                disableClearable
+                sx={{ flex: { xs: '1 1 100%', sm: '1 1 200px', md: 3.5 } }}
+              />
+
+              <Autocomplete
+                size="small"
+                options={levelOptions}
+                value={currentLevelValue}
+                onChange={(_, newValue) => {
+                  setSelectedLevel(newValue ? newValue.id : 'all');
+                  setGrammarPage(1);
+                }}
+                getOptionLabel={(option) => option.label || ''}
+                isOptionEqualToValue={(option, val) => String(option.id) === String(val?.id)}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Cấp độ TOPIK"
+                    placeholder="Chọn cấp độ..."
+                    sx={{ bgcolor: 'background.default', '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
+                  />
+                )}
+                disableClearable
+                sx={{ flex: { xs: '1 1 100%', sm: '1 1 200px', md: 3.5 } }}
+              />
+            </Box>
           </Paper>
 
-          {/* Notebook Word Cards Grid */}
-          {notebookLoading ? (
+          {/* Grammar Points Grid */}
+          {grammarLoading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
               <CircularProgress sx={{ color: '#9D446E' }} />
             </Box>
-          ) : notebookVocabs.length === 0 ? (
+          ) : grammarPoints.length === 0 ? (
             <Paper
               elevation={0}
-              sx={{
-                p: 6,
-                textAlign: 'center',
-                borderRadius: '20px',
-                border: '1px dashed',
-                borderColor: 'divider',
-                bgcolor: 'background.paper',
-              }}
+              sx={{ p: 6, textAlign: 'center', borderRadius: '20px', border: '1px dashed', borderColor: 'divider', bgcolor: 'background.paper' }}
             >
-              <Box
-                sx={{
-                  width: 64,
-                  height: 64,
-                  mx: 'auto',
-                  mb: 2,
-                  borderRadius: '20px',
-                  bgcolor: '#FDF2F4',
-                  color: '#9D446E',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+              <Typography variant="h6" sx={{ fontWeight: 800, mb: 1, color: '#9D446E' }}>
+                Không tìm thấy điểm ngữ pháp phù hợp
+              </Typography>
+              <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
+                Vui lòng thử tìm kiếm với từ khóa khác hoặc thay đổi bộ lọc chủ đề/cấp độ.
+              </Typography>
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  setSearchTerm('');
+                  setSelectedTopic('all');
+                  setSelectedLevel('all');
+                  setGrammarPage(1);
                 }}
+                sx={{ borderColor: '#9D446E', color: '#9D446E', borderRadius: '12px', fontWeight: 700, textTransform: 'none' }}
               >
-                <BookmarkBorderIcon sx={{ fontSize: 36 }} />
-              </Box>
-              <Typography variant="h6" sx={{ fontWeight: 800, mb: 1 }}>
-                Sổ tay của bạn đang trống
-              </Typography>
-              <Typography variant="body2" sx={{ color: 'text.secondary', maxWidth: 450, mx: 'auto', mb: 3 }}>
-                Hãy duyệt qua Kho Từ Vựng và nhấn biểu tượng bookmark 🔖 để lưu các từ bạn muốn ghi nhớ, hoặc tự thêm từ mới vào sổ tay!
-              </Typography>
-              <Stack direction="row" spacing={2} justifyContent="center">
-                <Button
-                  variant="outlined"
-                  onClick={() => setActiveTab('bank')}
-                  sx={{
-                    borderRadius: '12px',
-                    borderColor: '#9D446E',
-                    color: '#9D446E',
-                    fontWeight: 700,
-                    textTransform: 'none',
-                  }}
-                >
-                  Khám phá Kho Từ Vựng
-                </Button>
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon />}
-                  onClick={() => setOpenAddModal(true)}
-                  sx={{
-                    borderRadius: '12px',
-                    bgcolor: '#9D446E',
-                    fontWeight: 700,
-                    textTransform: 'none',
-                    '&:hover': { bgcolor: '#86365c' },
-                  }}
-                >
-                  Tự thêm từ mới
-                </Button>
-              </Stack>
+                Đặt lại bộ lọc
+              </Button>
             </Paper>
           ) : (
             <>
-              <Grid container spacing={2.5}>
-                {notebookVocabs.map((item) => {
-                  const stageInfo = getSrsStageInfo(item.srsStage);
-                  const isDue = new Date(item.nextReviewAt) <= new Date();
-
-                  return (
-                    <Grid item xs={12} sm={6} md={4} key={item.id}>
-                      <Paper
-                        elevation={0}
-                        sx={{
-                          p: 2.5,
-                          height: '100%',
-                          borderRadius: '20px',
-                          border: '1px solid',
-                          borderColor: isDue ? '#ffb74d' : 'divider',
-                          bgcolor: 'background.paper',
-                          boxShadow: '0 4px 14px rgba(0,0,0,0.03)',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          justifyContent: 'space-between',
-                          transition: 'all 0.2s ease',
-                          '&:hover': {
-                            transform: 'translateY(-3px)',
-                            boxShadow: '0 8px 24px rgba(157, 68, 110, 0.1)',
-                          },
-                        }}
-                      >
-                        <Box>
-                          {/* Top row: Stage badge + Delete */}
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-                            <Stack direction="row" spacing={1} alignItems="center">
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' },
+                  gap: 2.5,
+                  width: '100%',
+                }}
+              >
+                {grammarPoints.map((item) => (
+                    <Paper
+                      elevation={0}
+                      sx={{
+                        p: 2.5,
+                        height: '100%',
+                        borderRadius: '20px',
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        bgcolor: 'background.paper',
+                        boxShadow: '0 4px 16px rgba(0,0,0,0.03)',
+                        transition: 'all 0.25s ease',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        '&:hover': {
+                          transform: 'translateY(-3px)',
+                          boxShadow: '0 10px 28px rgba(157, 68, 110, 0.1)',
+                          borderColor: '#F8D7DA',
+                        },
+                      }}
+                    >
+                      <Box>
+                        {/* Top Chips */}
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <Chip
+                              label={`TOPIK ${item.topikLevel || 1}`}
+                              size="small"
+                              sx={{
+                                fontWeight: 800,
+                                fontSize: '0.72rem',
+                                bgcolor: '#FDF2F4',
+                                color: '#9D446E',
+                                border: '1px solid #F8D7DA',
+                              }}
+                            />
+                            {item.topic?.name && (
                               <Chip
-                                label={`${stageInfo.icon} Cấp ${item.srsStage}: ${stageInfo.label}`}
+                                label={item.topic.name}
                                 size="small"
                                 sx={{
-                                  height: 24,
-                                  fontWeight: 800,
-                                  fontSize: '0.68rem',
-                                  bgcolor: stageInfo.bgcolor,
-                                  color: stageInfo.color,
+                                  fontWeight: 700,
+                                  fontSize: '0.7rem',
+                                  bgcolor: (theme) => (theme.palette.mode === 'light' ? '#F1F5F9' : 'rgba(255,255,255,0.08)'),
+                                  color: 'text.secondary',
                                 }}
                               />
-                              {isDue && (
-                                <Chip
-                                  label="Cần ôn"
-                                  size="small"
-                                  sx={{
-                                    height: 22,
-                                    fontWeight: 800,
-                                    fontSize: '0.65rem',
-                                    bgcolor: '#fff3e0',
-                                    color: '#e65100',
-                                    border: '1px solid #ffe0b2',
-                                  }}
-                                />
-                              )}
-                            </Stack>
+                            )}
+                          </Stack>
+                        </Box>
 
-                            <Stack direction="row" spacing={0.5}>
-                              <Tooltip title="Phát âm tiếng Hàn">
+                        {/* Title & Structure */}
+                        <Typography
+                          variant="h5"
+                          sx={{
+                            fontWeight: 900,
+                            color: 'primary.main',
+                            fontFamily: 'Pretendard, sans-serif',
+                            letterSpacing: '-0.5px',
+                            mb: 1.5,
+                          }}
+                        >
+                          {item.title}
+                        </Typography>
+
+                        {item.structure && (
+                          <Box
+                            sx={{
+                              p: 1.5,
+                              borderRadius: '14px',
+                              bgcolor: (theme) => (theme.palette.mode === 'light' ? '#FFF5F7' : 'rgba(151, 63, 105, 0.15)'),
+                              border: '1px dashed #F8D7DA',
+                              mb: 2,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 1.2,
+                            }}
+                          >
+                            <LightbulbOutlinedIcon sx={{ color: '#9D446E', fontSize: 20, shrink: 0 }} />
+                            <Typography
+                              variant="body2"
+                              sx={{ fontWeight: 800, color: '#9D446E', fontFamily: 'Pretendard' }}
+                            >
+                              Cấu trúc: {item.structure}
+                            </Typography>
+                          </Box>
+                        )}
+
+                        {/* Explanation in Vietnamese */}
+                        <Typography
+                          variant="body1"
+                          sx={{
+                            fontWeight: 600,
+                            color: 'text.primary',
+                            lineHeight: 1.6,
+                            mb: 2,
+                            fontSize: '0.95rem',
+                          }}
+                        >
+                          {item.explanationVi}
+                        </Typography>
+
+                        {/* Example sentences */}
+                        {item.examples && item.examples.length > 0 && (
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.2, mb: 1 }}>
+                            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                              Ví dụ mẫu câu:
+                            </Typography>
+                            {item.examples.slice(0, 2).map((ex, exIdx) => (
+                              <Box
+                                key={exIdx}
+                                sx={{
+                                  p: 1.5,
+                                  borderRadius: '12px',
+                                  bgcolor: 'background.default',
+                                  border: '1px solid',
+                                  borderColor: 'divider',
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'flex-start',
+                                  gap: 1,
+                                }}
+                              >
+                                <Box>
+                                  <Typography
+                                    variant="body2"
+                                    sx={{ fontWeight: 700, color: 'text.primary', fontFamily: 'Pretendard' }}
+                                  >
+                                    {ex.sentenceKorean}
+                                  </Typography>
+                                  <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.3 }}>
+                                    {ex.sentenceVi}
+                                  </Typography>
+                                </Box>
                                 <IconButton
                                   size="small"
-                                  onClick={() => speakKorean(item.wordKr)}
-                                  sx={{
-                                    color: '#9D446E',
-                                    bgcolor: '#FDF2F4',
-                                    '&:hover': { bgcolor: '#FCE7EB' },
-                                  }}
+                                  onClick={() => speakKorean(ex.sentenceKorean)}
+                                  sx={{ color: '#9D446E', bgcolor: '#FDF2F4', '&:hover': { bgcolor: '#FCE7EB' }, shrink: 0 }}
                                 >
                                   <VolumeUpIcon fontSize="small" />
                                 </IconButton>
-                              </Tooltip>
-
-                              <Tooltip title="Xóa khỏi sổ tay">
-                                <IconButton
-                                  size="small"
-                                  onClick={() => handleDeleteNotebookItem(item)}
-                                  sx={{
-                                    color: 'text.secondary',
-                                    '&:hover': { color: 'error.main', bgcolor: '#fef2f2' },
-                                  }}
-                                >
-                                  <DeleteOutlineIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                            </Stack>
+                              </Box>
+                            ))}
                           </Box>
+                        )}
+                      </Box>
+                    </Paper>
+                ))}
+              </Box>
 
-                          {/* Word in Korean */}
-                          <Typography
-                            variant="h5"
-                            sx={{
-                              fontWeight: 900,
-                              color: 'text.primary',
-                              fontFamily: 'Pretendard, sans-serif',
-                              letterSpacing: '-0.5px',
-                              mb: 0.5,
-                            }}
-                          >
-                            {item.wordKr}
-                          </Typography>
-
-                          {/* Meaning in Vietnamese */}
-                          <Typography
-                            variant="body1"
-                            sx={{
-                              fontWeight: 700,
-                              color: 'text.primary',
-                              fontSize: '0.98rem',
-                              lineHeight: 1.4,
-                              mb: 2,
-                            }}
-                          >
-                            {item.meaningVi}
-                          </Typography>
-                        </Box>
-
-                        {/* SRS Review Quick Rating */}
-                        <Box sx={{ pt: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
-                          <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 1, fontWeight: 700 }}>
-                            Đánh giá ghi nhớ:
-                          </Typography>
-                          <Grid container spacing={0.8}>
-                            <Grid item xs={3}>
-                              <Button
-                                fullWidth
-                                size="small"
-                                variant="outlined"
-                                color="error"
-                                onClick={() => handleReviewWord(item, 'again')}
-                                sx={{ py: 0.4, fontSize: '0.7rem', fontWeight: 700, borderRadius: '8px', textTransform: 'none' }}
-                              >
-                                Quên
-                              </Button>
-                            </Grid>
-                            <Grid item xs={3}>
-                              <Button
-                                fullWidth
-                                size="small"
-                                variant="outlined"
-                                color="warning"
-                                onClick={() => handleReviewWord(item, 'hard')}
-                                sx={{ py: 0.4, fontSize: '0.7rem', fontWeight: 700, borderRadius: '8px', textTransform: 'none' }}
-                              >
-                                Khó
-                              </Button>
-                            </Grid>
-                            <Grid item xs={3}>
-                              <Button
-                                fullWidth
-                                size="small"
-                                variant="outlined"
-                                color="primary"
-                                onClick={() => handleReviewWord(item, 'good')}
-                                sx={{ py: 0.4, fontSize: '0.7rem', fontWeight: 700, borderRadius: '8px', textTransform: 'none' }}
-                              >
-                                Nhớ
-                              </Button>
-                            </Grid>
-                            <Grid item xs={3}>
-                              <Button
-                                fullWidth
-                                size="small"
-                                variant="outlined"
-                                color="success"
-                                onClick={() => handleReviewWord(item, 'easy')}
-                                sx={{ py: 0.4, fontSize: '0.7rem', fontWeight: 700, borderRadius: '8px', textTransform: 'none' }}
-                              >
-                                Dễ
-                              </Button>
-                            </Grid>
-                          </Grid>
-                        </Box>
-                      </Paper>
-                    </Grid>
-                  );
-                })}
-              </Grid>
-
-              {/* Notebook Pagination */}
-              {notebookTotalPages > 1 && (
+              {grammarTotalPages > 1 && (
                 <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
                   <Pagination
-                    count={notebookTotalPages}
-                    page={notebookPage}
+                    count={grammarTotalPages}
+                    page={grammarPage}
                     onChange={(_, val) => {
-                      setNotebookPage(val);
+                      setGrammarPage(val);
                       window.scrollTo({ top: 0, behavior: 'smooth' });
                     }}
                     color="primary"
                     shape="rounded"
-                    sx={{
-                      '& .Mui-selected': {
-                        bgcolor: '#9D446E !important',
-                        color: '#fff',
-                        fontWeight: 700,
-                      },
-                    }}
+                    sx={{ '& .Mui-selected': { bgcolor: '#9D446E !important', color: '#fff', fontWeight: 700 } }}
                   />
                 </Box>
               )}
             </>
           )}
-        </Stack>
+        </>
       )}
-
-      {/* Dialog: Thêm từ mới thủ công vào Sổ tay */}
-      <Dialog
-        open={openAddModal}
-        onClose={() => setOpenAddModal(false)}
-        maxWidth="xs"
-        fullWidth
-        PaperProps={{ sx: { borderRadius: '24px', p: 1 } }}
-      >
-        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
-          <Typography variant="h6" sx={{ fontWeight: 800 }}>
-            Thêm từ mới vào Sổ tay ✍️
-          </Typography>
-          <IconButton size="small" onClick={() => setOpenAddModal(false)}>
-            <CloseIcon fontSize="small" />
-          </IconButton>
-        </DialogTitle>
-
-        <DialogContent dividers sx={{ borderColor: 'divider' }}>
-          <Stack spacing={2.5} sx={{ mt: 1 }}>
-            <TextField
-              label="Từ tiếng Hàn (Hangul)"
-              placeholder="Ví dụ: 사과, 공부하다..."
-              fullWidth
-              value={customWordKr}
-              onChange={(e) => setCustomWordKr(e.target.value)}
-              InputProps={{
-                sx: { borderRadius: '12px' },
-              }}
-            />
-
-            <TextField
-              label="Nghĩa tiếng Việt"
-              placeholder="Ví dụ: Quả táo, Học bài..."
-              fullWidth
-              value={customMeaningVi}
-              onChange={(e) => setCustomMeaningVi(e.target.value)}
-              InputProps={{
-                sx: { borderRadius: '12px' },
-              }}
-            />
-
-            <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
-              💡 Từ mới sẽ bắt đầu ở Cấp độ SRS 0 và tự động nhắc bạn ôn tập theo chu kỳ ghi nhớ!
-            </Typography>
-          </Stack>
-        </DialogContent>
-
-        <DialogActions sx={{ p: 2, gap: 1 }}>
-          <Button
-            onClick={() => setOpenAddModal(false)}
-            sx={{ borderRadius: '12px', fontWeight: 700, textTransform: 'none', color: 'text.secondary' }}
-          >
-            Hủy
-          </Button>
-          <Button
-            variant="contained"
-            onClick={handleAddCustom}
-            disabled={addLoading}
-            sx={{
-              borderRadius: '12px',
-              bgcolor: '#9D446E',
-              fontWeight: 700,
-              textTransform: 'none',
-              px: 3,
-              '&:hover': { bgcolor: '#86365c' },
-            }}
-          >
-            {addLoading ? <CircularProgress size={20} color="inherit" /> : 'Lưu vào sổ tay'}
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       {/* Global Snackbar Toast */}
       <Snackbar
@@ -1530,11 +1153,7 @@ export const VocabularyHubPage = () => {
         <Alert
           onClose={() => setToast((prev) => ({ ...prev, open: false }))}
           severity={toast.severity}
-          sx={{
-            borderRadius: '14px',
-            fontWeight: 700,
-            boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-          }}
+          sx={{ borderRadius: '14px', fontWeight: 700, boxShadow: '0 8px 24px rgba(0,0,0,0.15)' }}
         >
           {toast.message}
         </Alert>

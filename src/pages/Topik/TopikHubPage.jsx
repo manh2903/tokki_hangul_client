@@ -31,33 +31,27 @@ const SKILLS = [
   { id: 'mock-test', name: 'Đề Thi Thử TOPIK', icon: AssignmentIcon, count: 'Đề thi chuẩn', color: '#ed6c02' },
 ];
 
+import { useQuery } from '@tanstack/react-query';
+
 export const TopikHubPage = () => {
   const navigate = useNavigate();
-  const [levels, setLevels] = useState([]);
-  const [loading, setLoading] = useState(true);
+
+  const { data: levels = [], isLoading: loading } = useQuery({
+    queryKey: ['topikLevels'],
+    queryFn: async () => {
+      const res = await topikApi.getTopikLevels();
+      return Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
   const [selectedLevelId, setSelectedLevelId] = useState(null);
 
   useEffect(() => {
-    const fetchTopikLevels = async () => {
-      setLoading(true);
-      try {
-        const res = await topikApi.getTopikLevels();
-        const data = res?.data || res || [];
-        if (Array.isArray(data)) {
-          setLevels(data);
-          if (data.length > 0) {
-            setSelectedLevelId(data[0].id);
-          }
-        }
-      } catch (err) {
-        console.warn('Failed to load TOPIK levels from API:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchTopikLevels();
-  }, []);
+    if (levels.length > 0 && !selectedLevelId) {
+      setSelectedLevelId(levels[0].id);
+    }
+  }, [levels, selectedLevelId]);
 
   return (
     <Stack spacing={4}>

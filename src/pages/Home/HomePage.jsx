@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import {
   Box,
   Grid,
@@ -9,6 +9,7 @@ import {
   CircularProgress,
 } from '@mui/material';
 import { useAuth } from '@/contexts/AuthContext';
+import { useQuery } from '@tanstack/react-query';
 import {
   topikApi,
   videosApi,
@@ -33,128 +34,120 @@ export const HomePage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const [recommendations, setRecommendations] = useState([]);
-  const [topicsList, setTopicsList] = useState([]);
-  const [stats, setStats] = useState({
+  // Fetch home data using TanStack Query with 5 minutes cache
+  const { data: homeData, isLoading: loading } = useQuery({
+    queryKey: ['homeData'],
+    queryFn: async () => {
+      const [levelsRes, dialoguesRes, videosRes, coursesRes, topicsRes] = await Promise.allSettled([
+        topikApi.getTopikLevels(),
+        conversationApi.getDialogues(),
+        videosApi.getVideos(),
+        coursesApi.getCourses(),
+        topicApi.getTopics(),
+      ]);
+
+      const levels = levelsRes.status === 'fulfilled' ? (levelsRes.value?.data || levelsRes.value || []) : [];
+      const dialogues = dialoguesRes.status === 'fulfilled' ? (dialoguesRes.value?.data || dialoguesRes.value || []) : [];
+      const videos = videosRes.status === 'fulfilled' ? (videosRes.value?.data || videosRes.value || []) : [];
+      const courses = coursesRes.status === 'fulfilled' ? (coursesRes.value?.data || coursesRes.value || []) : [];
+      const topics = topicsRes.status === 'fulfilled' ? (topicsRes.value?.data || topicsRes.value || []) : [];
+
+      const stats = {
+        levelsCount: Array.isArray(levels) ? levels.length : 0,
+        videosCount: Array.isArray(videos) ? videos.length : 0,
+        coursesCount: Array.isArray(courses) ? courses.length : 0,
+        topicsCount: Array.isArray(topics) ? topics.length : 0,
+        dialoguesCount: Array.isArray(dialogues) ? dialogues.length : 0,
+      };
+
+      // Generate dynamic recommendations
+      const dynamicRecs = [];
+
+      // 1. Real Course from API
+      if (Array.isArray(courses) && courses.length > 0) {
+        const c = courses[0];
+        dynamicRecs.push({
+          id: `course_${c.id}`,
+          type: 'course',
+          title: c.titleVi,
+          hangul: '정규 한국어 코스',
+          duration: `${c.units?.length || 1} học phần`,
+          level: c.levelCode ? c.levelCode.replace('_', ' ') : 'TOPIK I',
+          route: '/topik',
+          reason: c.descriptionVi || 'Lộ trình giáo trình bài bản từ bảng chữ cái đến giao tiếp lưu loát.',
+          icon: <SchoolIcon sx={{ fontSize: 24, color: '#0288d1' }} />,
+        });
+      }
+
+      // 2. Real Video Lesson from API
+      if (Array.isArray(videos) && videos.length > 0) {
+        const v = videos[0];
+        const durStr = v.durationSeconds
+          ? `${Math.floor(v.durationSeconds / 60)}:${(v.durationSeconds % 60).toString().padStart(2, '0')}`
+          : '04:15';
+        dynamicRecs.push({
+          id: `vid_${v.id}`,
+          type: 'video',
+          title: v.title,
+          hangul: v.koreanTitle || '한국어 영상 학습',
+          duration: durStr,
+          level: v.topikLevel ? `TOPIK ${v.topikLevel}` : 'Đa cấp độ',
+          route: `/video/${v.id}`,
+          reason: v.description || 'Luyện nghe phản xạ và tra từ vựng tương tác tức thì qua phụ đề song ngữ.',
+          icon: <OndemandVideoIcon sx={{ fontSize: 24, color: '#ed6c02' }} />,
+        });
+      }
+
+      // 3. Real TOPIK Level from API
+      if (Array.isArray(levels) && levels.length > 0) {
+        const l = levels[0];
+        dynamicRecs.push({
+          id: `topik_${l.id}`,
+          type: 'topik',
+          title: l.name,
+          hangul: `TOPIK ${l.levelNumber || 'I'} 종합 연습`,
+          duration: 'Luyện đề trắc nghiệm',
+          level: `Nhóm ${l.levelGroup || 'TOPIK'}`,
+          route: '/topik',
+          reason: 'Luyện đề thi thử, rèn luyện kỹ năng đọc hiểu và hệ thống hóa ngữ pháp trọng tâm.',
+          icon: <PsychologyIcon sx={{ fontSize: 24, color: '#9D446E' }} />,
+        });
+      }
+
+      // 4. Real Dialogue from API
+      if (Array.isArray(dialogues) && dialogues.length > 0) {
+        const d = dialogues[0];
+        dynamicRecs.push({
+          id: `diag_${d.id}`,
+          type: 'conversation',
+          title: d.title,
+          hangul: d.lines?.[0]?.koreanText || '한국어 대화 연습',
+          duration: `${d.lines?.length || 5} câu bài học`,
+          level: d.topikLevel ? `TOPIK ${d.topikLevel}` : 'Giao tiếp',
+          route: `/conversation/dialogue/${d.id}`,
+          reason: d.lines?.[0]?.vietnameseText || 'Tăng phản xạ giao tiếp theo ngữ cảnh đời sống thực tế.',
+          icon: <LocalCafeIcon sx={{ fontSize: 24, color: '#ff6b8b' }} />,
+        });
+      }
+
+      return {
+        stats,
+        topicsList: Array.isArray(topics) ? topics : [],
+        recommendations: dynamicRecs,
+      };
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const stats = homeData?.stats || {
     levelsCount: 0,
     videosCount: 0,
     coursesCount: 0,
     topicsCount: 0,
     dialoguesCount: 0,
-  });
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchHomeData = async () => {
-      setLoading(true);
-      try {
-        const [levelsRes, dialoguesRes, videosRes, coursesRes, topicsRes] = await Promise.allSettled([
-          topikApi.getTopikLevels(),
-          conversationApi.getDialogues(),
-          videosApi.getVideos(),
-          coursesApi.getCourses(),
-          topicApi.getTopics(),
-        ]);
-
-        const levels = levelsRes.status === 'fulfilled' ? (levelsRes.value?.data || levelsRes.value || []) : [];
-        const dialogues = dialoguesRes.status === 'fulfilled' ? (dialoguesRes.value?.data || dialoguesRes.value || []) : [];
-        const videos = videosRes.status === 'fulfilled' ? (videosRes.value?.data || videosRes.value || []) : [];
-        const courses = coursesRes.status === 'fulfilled' ? (coursesRes.value?.data || coursesRes.value || []) : [];
-        const topics = topicsRes.status === 'fulfilled' ? (topicsRes.value?.data || topicsRes.value || []) : [];
-
-        // Save real API statistics
-        setStats({
-          levelsCount: Array.isArray(levels) ? levels.length : 0,
-          videosCount: Array.isArray(videos) ? videos.length : 0,
-          coursesCount: Array.isArray(courses) ? courses.length : 0,
-          topicsCount: Array.isArray(topics) ? topics.length : 0,
-          dialoguesCount: Array.isArray(dialogues) ? dialogues.length : 0,
-        });
-
-        if (Array.isArray(topics)) {
-          setTopicsList(topics);
-        }
-
-        // Generate 100% dynamic recommendations from actual DB items
-        const dynamicRecs = [];
-
-        // 1. Real Course from API
-        if (Array.isArray(courses) && courses.length > 0) {
-          const c = courses[0];
-          dynamicRecs.push({
-            id: `course_${c.id}`,
-            type: 'course',
-            title: c.titleVi,
-            hangul: '정규 한국어 코스',
-            duration: `${c.units?.length || 1} học phần`,
-            level: c.levelCode ? c.levelCode.replace('_', ' ') : 'TOPIK I',
-            route: '/topik',
-            reason: c.descriptionVi || 'Lộ trình giáo trình bài bản từ bảng chữ cái đến giao tiếp lưu loát.',
-            icon: <SchoolIcon sx={{ fontSize: 24, color: '#0288d1' }} />,
-          });
-        }
-
-        // 2. Real Video Lesson from API
-        if (Array.isArray(videos) && videos.length > 0) {
-          const v = videos[0];
-          const durStr = v.durationSeconds
-            ? `${Math.floor(v.durationSeconds / 60)}:${(v.durationSeconds % 60).toString().padStart(2, '0')}`
-            : '04:15';
-          dynamicRecs.push({
-            id: `vid_${v.id}`,
-            type: 'video',
-            title: v.title,
-            hangul: v.koreanTitle || '한국어 영상 학습',
-            duration: durStr,
-            level: v.topikLevel ? `TOPIK ${v.topikLevel}` : 'Đa cấp độ',
-            route: `/video/${v.id}`,
-            reason: v.description || 'Luyện nghe phản xạ và tra từ vựng tương tác tức thì qua phụ đề song ngữ.',
-            icon: <OndemandVideoIcon sx={{ fontSize: 24, color: '#ed6c02' }} />,
-          });
-        }
-
-        // 3. Real TOPIK Level from API
-        if (Array.isArray(levels) && levels.length > 0) {
-          const l = levels[0];
-          dynamicRecs.push({
-            id: `topik_${l.id}`,
-            type: 'topik',
-            title: l.name,
-            hangul: `TOPIK ${l.levelNumber || 'I'} 종합 연습`,
-            duration: 'Luyện đề trắc nghiệm',
-            level: `Nhóm ${l.levelGroup || 'TOPIK'}`,
-            route: '/topik',
-            reason: 'Luyện đề thi thử, rèn luyện kỹ năng đọc hiểu và hệ thống hóa ngữ pháp trọng tâm.',
-            icon: <PsychologyIcon sx={{ fontSize: 24, color: '#9D446E' }} />,
-          });
-        }
-
-        // 4. Real Dialogue from API (if available)
-        if (Array.isArray(dialogues) && dialogues.length > 0) {
-          const d = dialogues[0];
-          dynamicRecs.push({
-            id: `diag_${d.id}`,
-            type: 'conversation',
-            title: d.title,
-            hangul: d.lines?.[0]?.koreanText || '한국어 대화 연습',
-            duration: `${d.lines?.length || 5} câu bài học`,
-            level: d.topikLevel ? `TOPIK ${d.topikLevel}` : 'Giao tiếp',
-            route: `/conversation/dialogue/${d.id}`,
-            reason: d.lines?.[0]?.vietnameseText || 'Tăng phản xạ giao tiếp theo ngữ cảnh đời sống thực tế.',
-            icon: <LocalCafeIcon sx={{ fontSize: 24, color: '#ff6b8b' }} />,
-          });
-        }
-
-        setRecommendations(dynamicRecs);
-      } catch (err) {
-        console.warn('Failed to load home page data:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchHomeData();
-  }, []);
+  };
+  const topicsList = homeData?.topicsList || [];
+  const recommendations = homeData?.recommendations || [];
 
   // 100% Dynamic Hubs calculated directly from DB entity counts
   const learningHubs = useMemo(() => [

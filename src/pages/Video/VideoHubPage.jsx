@@ -39,13 +39,11 @@ import LinkIcon from '@mui/icons-material/Link';
 import SearchIcon from '@mui/icons-material/Search';
 import YouTubeIcon from '@mui/icons-material/YouTube';
 import SmartDisplayIcon from '@mui/icons-material/SmartDisplay';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 export const VideoHubPage = () => {
   const navigate = useNavigate();
-  const [videos, setVideos] = useState([]);
-  const [topics, setTopics] = useState([]);
-  const [topikLevels, setTopikLevels] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [levelFilter, setLevelFilter] = useState('all');
   const [selectedTopicId, setSelectedTopicId] = useState('all');
@@ -60,39 +58,32 @@ export const VideoHubPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
 
-  const fetchInitialData = async () => {
-    setLoading(true);
-    try {
+  // TanStack Query for Video Hub Data (cached for 5 minutes)
+  const { data: hubData, isLoading: loading } = useQuery({
+    queryKey: ['videoHubData'],
+    queryFn: async () => {
       const [videosRes, topicsRes, levelsRes] = await Promise.allSettled([
         videosApi.getVideos(),
         topicApi.getTopics(),
         topikApi.getTopikLevels(),
       ]);
 
-      if (videosRes.status === 'fulfilled') {
-        const data = videosRes.value?.data || videosRes.value || [];
-        if (Array.isArray(data)) setVideos(data);
-      }
+      const videos = videosRes.status === 'fulfilled' ? (videosRes.value?.data || videosRes.value || []) : [];
+      const topics = topicsRes.status === 'fulfilled' ? (topicsRes.value?.data || topicsRes.value || []) : [];
+      const topikLevels = levelsRes.status === 'fulfilled' ? (levelsRes.value?.data || levelsRes.value || []) : [];
 
-      if (topicsRes.status === 'fulfilled') {
-        const tData = topicsRes.value?.data || topicsRes.value || [];
-        if (Array.isArray(tData)) setTopics(tData);
-      }
+      return {
+        videos: Array.isArray(videos) ? videos : [],
+        topics: Array.isArray(topics) ? topics : [],
+        topikLevels: Array.isArray(topikLevels) ? topikLevels : [],
+      };
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
-      if (levelsRes.status === 'fulfilled') {
-        const lData = levelsRes.value?.data || levelsRes.value || [];
-        if (Array.isArray(lData)) setTopikLevels(lData);
-      }
-    } catch (err) {
-      console.warn('Failed to load initial data:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchInitialData();
-  }, []);
+  const videos = hubData?.videos || [];
+  const topics = hubData?.topics || [];
+  const topikLevels = hubData?.topikLevels || [];
 
   const handleOpenModal = () => {
     setVideoUrl('');
@@ -129,13 +120,11 @@ export const VideoHubPage = () => {
       });
 
       const created = res?.data || res;
+      queryClient.invalidateQueries({ queryKey: ['videoHubData'] });
       if (created?.id) {
         setOpenModal(false);
         navigate(`/video/${created.id}`);
       } else {
-        const refreshed = await videosApi.getVideos();
-        const data = refreshed?.data || refreshed || [];
-        if (Array.isArray(data)) setVideos(data);
         setOpenModal(false);
       }
     } catch (err) {

@@ -24,6 +24,7 @@ import InsightsIcon from '@mui/icons-material/Insights';
 import PhoneInTalkIcon from '@mui/icons-material/PhoneInTalk';
 import SparklesIcon from '@mui/icons-material/AutoAwesome';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
+import BookmarkIcon from '@mui/icons-material/Bookmark';
 import CloseIcon from '@mui/icons-material/Close';
 
 const MENU_SECTIONS = [
@@ -31,7 +32,8 @@ const MENU_SECTIONS = [
     title: 'Học tập',
     items: [
       { label: 'Trang chủ', path: '/app', icon: HomeIcon },
-      { label: 'Kho Từ vựng', path: '/vocabulary', icon: MenuBookIcon },
+      { label: 'Từ vựng & Ngữ pháp', path: '/vocabulary', icon: MenuBookIcon },
+      { label: 'Sổ tay của tôi', path: '/notebook', icon: BookmarkIcon, badge: 'SRS' },
       { label: 'Lộ trình AI', path: '/onboarding/path-preview', icon: ExploreIcon, badge: 'Smart' },
       { label: 'Luyện thi TOPIK', path: '/topik', icon: SchoolIcon },
       { label: 'Học qua Video', path: '/video', icon: OndemandVideoIcon },
@@ -153,6 +155,10 @@ export const Sidebar = ({ mobileOpen = false, onClose }) => {
                 const isSelected =
                   item.path === '/app'
                     ? location.pathname === '/app' || location.pathname === '/home'
+                    : item.path === '/notebook'
+                    ? location.pathname === '/notebook' || (location.pathname === '/vocabulary' && location.search.includes('tab=notebook'))
+                    : item.path === '/vocabulary'
+                    ? (location.pathname === '/vocabulary' || location.pathname === '/grammar') && !location.search.includes('tab=notebook')
                     : location.pathname.startsWith(item.path);
 
                 return (
@@ -283,6 +289,7 @@ export const Sidebar = ({ mobileOpen = false, onClose }) => {
         variant="temporary"
         open={Boolean(mobileOpen)}
         onClose={onClose}
+        disableScrollLock
         ModalProps={{ keepMounted: true }}
         sx={{
           display: { xs: 'block', lg: 'none' },

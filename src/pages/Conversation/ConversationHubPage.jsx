@@ -19,29 +19,19 @@ import SmartToyIcon from '@mui/icons-material/SmartToy';
 import MicIcon from '@mui/icons-material/Mic';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 
+import { useQuery } from '@tanstack/react-query';
+
 export const ConversationHubPage = () => {
   const navigate = useNavigate();
-  const [dialogues, setDialogues] = useState([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchDialogues = async () => {
-      setLoading(true);
-      try {
-        const res = await conversationApi.getDialogues();
-        const data = res?.data || res || [];
-        if (Array.isArray(data)) {
-          setDialogues(data);
-        }
-      } catch (err) {
-        console.warn('Failed to load dialogues from API:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchDialogues();
-  }, []);
+  const { data: dialogues = [], isLoading: loading } = useQuery({
+    queryKey: ['dialogues'],
+    queryFn: async () => {
+      const res = await conversationApi.getDialogues();
+      return Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+    },
+    staleTime: 10 * 60 * 1000,
+  });
 
   return (
     <Stack spacing={4}>
